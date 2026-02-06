@@ -6,25 +6,21 @@ DASHBOARD_URLS = {
         "dashboard_type_1": "https://ccpreusw2-us-west-2.cloudops.compute.cloud.hpe.com/logs/computecentral/dashboards/Data%20Ingestion%20to%20Sustainability%20Insight%20Center?dashboardId=c1aViyZqkRvBsI3eMKRpOQ6zCzPWJ35z",
         "dashboard_type_2": "https://ccpreusw2-us-west-2.cloudops.compute.cloud.hpe.com/logs/computecentral/dashboards/COM%20Subscription%20and%20Consumption?dashboardId=EJp6d928ejsSA00kw2emoBhcVNf2OjOd",
         "dashboard_type_3": "https://ccpreusw2-us-west-2.cloudops.compute.cloud.hpe.com/logs/computecentral/dashboards/Activation%20Key%20Onboarding?dashboardId=LtFA33nlpz73ZpH9608jqRLQBlvpbnPz",
-        "dashboard_type_4": "https://ccpreusw2-us-west-2.cloudops.compute.cloud.hpe.com/logs/computecentral/dashboards/%5BTS-Manisha%5D%20Service-Errors%20Filter%20Known%20Issues%20(pre-prod)?dashboardId=UCTmt1Oxn5PhLs1ReaqS1lqpyZd8a3is",
     },
     "env2": {
         "dashboard_type_1": "https://ccprodane1-ap-northeast-1.cloudops.compute.cloud.hpe.com/logs/computecentral/dashboards/Data%20Ingestion%20to%20Sustainability%20Insight%20Center?dashboardId=8baepYQQfzBT8JBf1d3T51niNeKAhmeQ",
         "dashboard_type_2": "https://ccprodane1-ap-northeast-1.cloudops.compute.cloud.hpe.com/logs/computecentral/dashboards/COM%20Subscription%20and%20Consumption?dashboardId=BjjaphcXKAExfBqVX5WbMjnI79hO8oDd",
         "dashboard_type_3": "https://ccprodane1-ap-northeast-1.cloudops.compute.cloud.hpe.com/logs/computecentral/dashboards/Activation%20Key%20Onboarding?dashboardId=8vglYJMqNn8w7piqx8JjaPsbgINTsyvM",
-        "dashboard_type_4": "https://ccprodane1-ap-northeast-1.cloudops.compute.cloud.hpe.com/logs/computecentral/dashboards/%5BTS-Manisha%5D%20Service-Errors%20Filter%20Known%20Issues?dashboardId=4CgWG7CJ2siNnxNsQjMvmsrySaaBXh6o",
     },
     "env3": {
         "dashboard_type_1": "https://ccprodeuc1-eu-central-1.cloudops.compute.cloud.hpe.com/logs/computecentral/dashboards/Data%20Ingestion%20to%20Sustainability%20Insight%20Center?dashboardId=CXyM0Ixx13oKBIu4qdVSouvNr3z72Q7R",
         "dashboard_type_2": "https://ccprodeuc1-eu-central-1.cloudops.compute.cloud.hpe.com/logs/computecentral/dashboards/COM%20Subscription%20and%20Consumption?dashboardId=7HOpZefQ7ATnthap8qOzG4ce5mq4tsSF",
         "dashboard_type_3": "https://ccprodeuc1-eu-central-1.cloudops.compute.cloud.hpe.com/logs/computecentral/dashboards/Activation%20Key%20Onboarding?dashboardId=2sU9buDIfWraWyqToP7tlvwL6CfIGuz8",
-        "dashboard_type_4": "https://ccprodeuc1-eu-central-1.cloudops.compute.cloud.hpe.com/logs/computecentral/dashboards/%5BTS-Manisha%5D%20Service-Errors%20Filter%20Known%20Issues?dashboardId=MEKx3SLFhPj8TTDZHVug9a5Vq6vo2MvG",
     },
     "env4": {
         "dashboard_type_1": "https://ccprodusw2-us-west-2.cloudops.compute.cloud.hpe.com/logs/computecentral/dashboards/Data%20Ingestion%20to%20Sustainability%20Insight%20Center?dashboardId=k1IfQQ0CrPmymhHWIQhVVOGX9iP8F9WE",
         "dashboard_type_2": "https://ccprodusw2-us-west-2.cloudops.compute.cloud.hpe.com/logs/computecentral/dashboards/COM%20Subscription%20and%20Consumption?dashboardId=PrsSt0o2jnyVDfUtF6G5RuW8J0B04hFE",
         "dashboard_type_3": "https://ccprodusw2-us-west-2.cloudops.compute.cloud.hpe.com/logs/computecentral/dashboards/Activation%20Key%20Onboarding?dashboardId=8CtZeTHokVjo0k24Hw498lhqgHJNAnyf",
-        "dashboard_type_4": "https://ccprodusw2-us-west-2.cloudops.compute.cloud.hpe.com/logs/computecentral/dashboards/%5BTS-Manisha%5D%20Service-Errors%20Filter%20Known%20Issues?dashboardId=UNUXGptMYR0BzrmRpEqA8NiOPQzXUqM9",
     },
 }
 
@@ -836,97 +832,97 @@ class DashboardType3Automation:
         return self.result
 
 
-class DashboardType4Automation:
-    """Automation logic for Dashboard Type 4 - Service-Errors Filter Known Issues."""
-    
-    def __init__(self, page):
-        """Initialize with Playwright page object."""
-        self.page = page
-        self.dashboard_name = "Service-Errors Filter Known Issues"
-        self.result = None
-        self.service_errors = {}
-
-    async def _extract_widget_errors(self, widget):
-        """Extract error lines from a widget container."""
-        try:
-            await widget.scroll_into_view_if_needed(timeout=5000)
-        except:
-            await self.page.evaluate("window.scrollBy(0, 2000)")
-            await self.page.wait_for_timeout(500)
-
-        # No results check
-        try:
-            no_results = widget.locator('div.text-deemphasized').filter(has_text="Search completed. No results found")
-            await no_results.wait_for(timeout=1500)
-            return []
-        except:
-            pass
-
-        # Table-based extraction
-        try:
-            rows = widget.locator('table > tbody > tr')
-            row_count = await rows.count()
-            if row_count > 0:
-                errors = []
-                for i in range(min(row_count, 20)):
-                    try:
-                        row_text = await rows.nth(i).inner_text(timeout=1500)
-                        if row_text.strip():
-                            errors.append(row_text.strip())
-                    except:
-                        continue
-                return errors
-        except:
-            pass
-
-        # Fallback: extract text lines from widget content
-        try:
-            content = await widget.inner_text(timeout=2000)
-            lines = [line.strip() for line in content.splitlines() if line.strip()]
-            # Remove generic phrases
-            filtered = [line for line in lines if "Search completed" not in line and "No results found" not in line]
-            return filtered
-        except:
-            return []
-
-    async def extract_service_errors(self):
-        """Extract service-specific errors for zinc-app, roundup, neptune, keysmith, charger."""
-        services = ["zinc-app", "roundup", "neptune", "keysmith", "charger"]
-        results = {}
-
-        for service in services:
-            # Find widget containing the service name
-            widget = self.page.locator("div.widget-box").filter(has_text=service).first
-            try:
-                if await widget.count() == 0:
-                    results[service] = []
-                    continue
-            except:
-                results[service] = []
-                continue
-
-            errors = await self._extract_widget_errors(widget)
-            results[service] = errors
-
-        self.service_errors = results
-        return results
-    
-    async def run_checks(self):
-        """Run dashboard-specific checks and automation."""
-        print("Running Dashboard Type 4 checks...")
-        await self.page.wait_for_timeout(2000)
-        await self.extract_service_errors()
-        self.result = f"   ✓ {self.dashboard_name} - Completed"
-        print(self.result)
-        return self.result
-
-
+# class DashboardType4Automation:
+#     """Automation logic for Dashboard Type 4 - Service-Errors Filter Known Issues."""
+#
+#     def __init__(self, page):
+#         """Initialize with Playwright page object."""
+#         self.page = page
+#         self.dashboard_name = "Service-Errors Filter Known Issues"
+#         self.result = None
+#         self.service_errors = {}
+#
+#     async def _extract_widget_errors(self, widget):
+#         """Extract error lines from a widget container."""
+#         try:
+#             await widget.scroll_into_view_if_needed(timeout=5000)
+#         except:
+#             await self.page.evaluate("window.scrollBy(0, 2000)")
+#             await self.page.wait_for_timeout(500)
+#
+#         # No results check
+#         try:
+#             no_results = widget.locator('div.text-deemphasized').filter(has_text="Search completed. No results found")
+#             await no_results.wait_for(timeout=1500)
+#             return []
+#         except:
+#             pass
+#
+#         # Table-based extraction
+#         try:
+#             rows = widget.locator('table > tbody > tr')
+#             row_count = await rows.count()
+#             if row_count > 0:
+#                 errors = []
+#                 for i in range(min(row_count, 20)):
+#                     try:
+#                         row_text = await rows.nth(i).inner_text(timeout=1500)
+#                         if row_text.strip():
+#                             errors.append(row_text.strip())
+#                     except:
+#                         continue
+#                 return errors
+#         except:
+#             pass
+#
+#         # Fallback: extract text lines from widget content
+#         try:
+#             content = await widget.inner_text(timeout=2000)
+#             lines = [line.strip() for line in content.splitlines() if line.strip()]
+#             # Remove generic phrases
+#             filtered = [line for line in lines if "Search completed" not in line and "No results found" not in line]
+#             return filtered
+#         except:
+#             return []
+#
+#     async def extract_service_errors(self):
+#         """Extract service-specific errors for zinc-app, roundup, neptune, keysmith, charger."""
+#         services = ["zinc-app", "roundup", "neptune", "keysmith", "charger"]
+#         results = {}
+#
+#         for service in services:
+#             # Find widget containing the service name
+#             widget = self.page.locator("div.widget-box").filter(has_text=service).first
+#             try:
+#                 if await widget.count() == 0:
+#                     results[service] = []
+#                     continue
+#             except:
+#                 results[service] = []
+#                 continue
+#
+#             errors = await self._extract_widget_errors(widget)
+#             results[service] = errors
+#
+#         self.service_errors = results
+#         return results
+#
+#     async def run_checks(self):
+#         """Run dashboard-specific checks and automation."""
+#         print("Running Dashboard Type 4 checks...")
+#         await self.page.wait_for_timeout(2000)
+#         await self.extract_service_errors()
+#         self.result = f"   ✓ {self.dashboard_name} - Completed"
+#         print(self.result)
+#         return self.result
+#
+#
 # Map dashboard types to their automation classes
 DASHBOARD_AUTOMATION = {
     "dashboard_type_1": DashboardType1Automation,
     "dashboard_type_2": DashboardType2Automation,
     "dashboard_type_3": DashboardType3Automation,
-    "dashboard_type_4": DashboardType4Automation,
+    # "dashboard_type_4": DashboardType4Automation,  # DISABLED FOR NOW
 }
 
 
@@ -1129,7 +1125,7 @@ async def run_all_environments_comprehensive_report():
         "dashboard_type_2": "COM Subscription And Consumption",
         "dashboard_type_1": "Data Ingestion to Sustainability Insight Center",
         "dashboard_type_3": "Activation Keys Onboarding",
-        "dashboard_type_4": "Service-Errors Filter Known Issues"
+        # "dashboard_type_4": "Service-Errors Filter Known Issues"  # DISABLED FOR NOW
     }
     
     # Process each environment in order
@@ -1142,7 +1138,7 @@ async def run_all_environments_comprehensive_report():
                 continue
             
             # Show results for each dashboard type in specified order
-            dashboard_order = ["dashboard_type_2", "dashboard_type_1", "dashboard_type_3", "dashboard_type_4"]
+            dashboard_order = ["dashboard_type_2", "dashboard_type_1", "dashboard_type_3"]  # dashboard_type_4 disabled
             for db_type in dashboard_order:
                 if db_type in env_data:
                     db_display = dashboard_display_names[db_type]
@@ -1198,62 +1194,62 @@ async def run_all_environments_comprehensive_report():
                             report_lines.append("o\tNo errors")
                     
                     # Handle Type 4 dashboard with services
-                    elif db_type == "dashboard_type_4":
-                        if hasattr(dashboard_obj, 'service_errors') and dashboard_obj.service_errors:
-                            service_order = ["zinc-app", "roundup", "neptune", "keysmith", "charger"]
-                            for service in service_order:
-                                errors = dashboard_obj.service_errors.get(service, [])
-                                if errors:
-                                    report_lines.append(f"o\t{service}")
-                                    for err in errors:
-                                        report_lines.append(f"\t{err}")
-                                else:
-                                    report_lines.append(f"o\t{service} - No errors")
-                        else:
-                            report_lines.append("o\tNo errors")
+                    # elif db_type == "dashboard_type_4":
+    #                        if hasattr(dashboard_obj, 'service_errors') and dashboard_obj.service_errors:
+    #                            service_order = ["zinc-app", "roundup", "neptune", "keysmith", "charger"]
+    #                            for service in service_order:
+    #                                errors = dashboard_obj.service_errors.get(service, [])
+    #                                if errors:
+    #                                    report_lines.append(f"o\t{service}")
+    #                                    for err in errors:
+    #                                        report_lines.append(f"\t{err}")
+    #                                else:
+    #                                    report_lines.append(f"o\t{service} - No errors")
+    #                        else:
+    #                            report_lines.append("o\tNo errors")
                     
-                    # Handle Type 1 and Type 2
-                    else:
-                        if hasattr(dashboard_obj, 'result'):
-                            result = dashboard_obj.result
-                            if "No errors" in result:
-                                report_lines.append(f"o\tNo errors")
-                            elif " - " in result:
-                                # Extract errors after the " - "
-                                parts = result.split(" - ", 1)
-                                if len(parts) > 1:
-                                    errors = parts[1].split(" | ")
-                                    for error in errors:
-                                        error_clean = error.strip()
-                                        if error_clean:
-                                            report_lines.append(f"o\t{error_clean}")
-                            else:
-                                report_lines.append(f"o\tNo data")
-                        else:
-                            report_lines.append(f"o\tNo data")
+    #                    # Handle Type 1 and Type 2
+    #                    else:
+    #                        if hasattr(dashboard_obj, 'result'):
+    #                            result = dashboard_obj.result
+    #                            if "No errors" in result:
+    #                                report_lines.append(f"o\tNo errors")
+    #                            elif " - " in result:
+    #                                # Extract errors after the " - "
+    #                                parts = result.split(" - ", 1)
+    #                                if len(parts) > 1:
+    #                                    errors = parts[1].split(" | ")
+    #                                    for error in errors:
+    #                                        error_clean = error.strip()
+    #                                        if error_clean:
+    #                                            report_lines.append(f"o\t{error_clean}")
+    #                            else:
+    #                                report_lines.append(f"o\tNo data")
+    #                        else:
+    #                            report_lines.append(f"o\tNo data")
     
-    # Print the formatted report
-    print(f"\n{'='*70}")
-    print(f"FINAL SUMMARY REPORT")
-    print(f"{'='*70}\n")
-    for line in report_lines:
-        print(line)
+    #    # Print the formatted report
+    #    print(f"\n{'='*70}")
+    #    print(f"FINAL SUMMARY REPORT")
+    #    print(f"{'='*70}\n")
+    #    for line in report_lines:
+    #        print(line)
     
-    print(f"\n{'='*70}")
-    print(f"REPORT GENERATION COMPLETE")
-    print(f"{'='*70}\n")
+    #    print(f"\n{'='*70}")
+    #    print(f"REPORT GENERATION COMPLETE")
+    #    print(f"{'='*70}\n")
 
 
-async def main():
-    # Run all environments and generate comprehensive report
-    await run_all_environments_comprehensive_report()
+    #async def main():
+    #    # Run all environments and generate comprehensive report
+    #    await run_all_environments_comprehensive_report()
     
-    # to run single environment
-    # await run_all_dashboards_in_environment(environment="env1")
+    #    # to run single environment
+    #    # await run_all_dashboards_in_environment(environment="env1")
     
-    # to run single dashboard
-    # await run_single_dashboard(environment="env1", dashboard_type="dashboard_type_1")
+    #    # to run single dashboard
+    #    # await run_single_dashboard(environment="env1", dashboard_type="dashboard_type_1")
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    #if __name__ == "__main__":
+    #    asyncio.run(main())
