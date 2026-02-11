@@ -42,7 +42,18 @@ class HumioLoginAutomation:
             self.page = await self.context.new_page()
             logger.info("Browser launched successfully")
         except Exception as e:
-            logger.error(f"Failed to launch browser: {e}")
+            logger.error(f"Failed to launch browser with channel '{self.browser_channel}': {e}")
+            if self.browser_channel != "chromium":
+                logger.info("Retrying with default Chromium channel...")
+                try:
+                    fallback_kwargs = {"headless": False, "args": ["--start-maximized"]}
+                    self.browser = await self.playwright.chromium.launch(**fallback_kwargs)
+                    self.context = await self.browser.new_context(no_viewport=True)
+                    self.page = await self.context.new_page()
+                    logger.info("Browser launched successfully with Chromium fallback")
+                    return
+                except Exception as fallback_error:
+                    logger.error(f"Failed to launch Chromium fallback: {fallback_error}")
             raise
 
     async def navigate_to_login_page(self):
@@ -155,6 +166,16 @@ class HumioLoginAutomation:
             return True
         except Exception as e:
             logger.error(f"\nFAILED: {e}")
+            # Ensure subprocess transports are closed on failure
+            try:
+                if self.context:
+                    await self.context.close()
+                if self.browser:
+                    await self.browser.close()
+                if self.playwright:
+                    await self.playwright.stop()
+            except Exception as cleanup_error:
+                logger.error(f"Cleanup error: {cleanup_error}")
             return False
         # No finally block - let caller manage cleanup
 
