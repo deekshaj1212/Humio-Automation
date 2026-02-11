@@ -62,6 +62,32 @@ class DashboardType4Automation:
                 "id": "93921e2f-64c3-4fbb-a40d-83977033d532",
                 "content_selector": "div.widget-box__content.z-40 > div > div.w-full.h-full > div > div > div"
             }
+        },
+        "env3": {
+            "charger": {
+                "id": "ff564e84-ceb2-48b2-b2d8-bb1f6cf4b0e8",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div.flex.flex-col.flex-1.overflow-auto.h-full > table"
+            },
+            "keysmith": {
+                "id": "fc3cd48b-6094-4665-85e6-27ceab405632",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div.flex.flex-col.flex-1.overflow-auto.h-full > table"
+            },
+            "neptune": {
+                "id": "54ac38aa-73b4-43b0-9de8-e9ca94a4a22f",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div.flex.flex-col.flex-1.overflow-auto.h-full > table"
+            },
+            "roundup": {
+                "id": "173d8fc2-5b40-43a2-9821-55aa390c38d1",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div.flex.flex-col.flex-1.overflow-auto.h-full > table"
+            },
+            "zinc": {
+                "id": "96ccea84-6792-4b32-8f90-e3627d4e38ac",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div.flex.flex-col.flex-1.overflow-auto.h-full > table"
+            },
+            "pll_count": {
+                "id": "552e037b-cf00-4f2f-a353-7c4b8021e311",
+                "content_selector": "div.widget-box__content.z-40 > div > div.w-full.h-full > div > div > div"
+            }
         }
     }
     
