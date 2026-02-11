@@ -366,9 +366,17 @@ async def run_all_environments_comprehensive_report():
                                 widget_errors = widget_data.get("errors", [])
                                 
                                 if widget_errors and isinstance(widget_errors, list):
-                                    report_lines.append(f"o\t{widget_name}")
-                                    for error in _summarize_errors(widget_errors):
-                                        report_lines.append(f"\t{error}")
+                                    summarized_errors = _summarize_errors(widget_errors)
+                                    if (
+                                        widget_name == "PII Detection Count"
+                                        and len(summarized_errors) == 1
+                                        and summarized_errors[0].startswith(widget_name)
+                                    ):
+                                        report_lines.append(f"o\t{summarized_errors[0]}")
+                                    else:
+                                        report_lines.append(f"o\t{widget_name}")
+                                        for error in summarized_errors:
+                                            report_lines.append(f"\t{error}")
                                 else:
                                     report_lines.append(f"o\t{widget_name} - No errors")
                         else:

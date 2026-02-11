@@ -32,7 +32,7 @@ class DashboardType4Automation:
                 "id": "96ccea84-6792-4b32-8f90-e3627d4e38ac",
                 "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div.flex.flex-col.flex-1.overflow-auto.h-full > table"
             },
-            "pll_count": {
+            "pii_count": {
                 "id": "c5ffcf80-dfdc-4b3d-b34c-4c17fc6f0156",
                 "content_selector": "div.widget-box__content.z-40 > div > div.w-full.h-full > div > div > div"
             }
@@ -58,7 +58,7 @@ class DashboardType4Automation:
                 "id": "96ccea84-6792-4b32-8f90-e3627d4e38ac",
                 "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div.flex.flex-col.flex-1.overflow-auto.h-full > table"
             },
-            "pll_count": {
+            "pii_count": {
                 "id": "93921e2f-64c3-4fbb-a40d-83977033d532",
                 "content_selector": "div.widget-box__content.z-40 > div > div.w-full.h-full > div > div > div"
             }
@@ -84,8 +84,34 @@ class DashboardType4Automation:
                 "id": "96ccea84-6792-4b32-8f90-e3627d4e38ac",
                 "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div.flex.flex-col.flex-1.overflow-auto.h-full > table"
             },
-            "pll_count": {
+            "pii_count": {
                 "id": "552e037b-cf00-4f2f-a353-7c4b8021e311",
+                "content_selector": "div.widget-box__content.z-40 > div > div.w-full.h-full > div > div > div"
+            }
+        },
+        "env4": {
+            "charger": {
+                "id": "ff564e84-ceb2-48b2-b2d8-bb1f6cf4b0e8",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div.flex.flex-col.flex-1.overflow-auto.h-full > table"
+            },
+            "keysmith": {
+                "id": "fc3cd48b-6094-4665-85e6-27ceab405632",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div.flex.flex-col.flex-1.overflow-auto.h-full > table"
+            },
+            "neptune": {
+                "id": "54ac38aa-73b4-43b0-9de8-e9ca94a4a22f",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table"
+            },
+            "roundup": {
+                "id": "173d8fc2-5b40-43a2-9821-55aa390c38d1",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table"
+            },
+            "zinc": {
+                "id": "96ccea84-6792-4b32-8f90-e3627d4e38ac",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table"
+            },
+            "pii_count": {
+                "id": "67974173-bcd5-42e3-8072-ba37f8fe323c",
                 "content_selector": "div.widget-box__content.z-40 > div > div.w-full.h-full > div > div > div"
             }
         }
@@ -97,6 +123,7 @@ class DashboardType4Automation:
         self.dashboard_name = "Service-Errors Filter Known Issues"
         self.environment = environment
         self.service_errors = {}  # Dictionary to store errors by service name
+        self.widgets = []  # List of widget result dicts for summary reporting
         self.widget_config = self.WIDGET_CONFIG.get(environment, self.WIDGET_CONFIG["env1"])
 
     async def _wait_for_dashboard_load(self):
@@ -333,22 +360,22 @@ class DashboardType4Automation:
         """Extract Zinc-Errors widget data."""
         return await self._extract_widget_errors("zinc", "Zinc-Errors")
 
-    async def _extract_pll_count(self):
-        """Extract PLL Count widget data.
+    async def _extract_pii_count(self):
+        """Extract PII Count widget data.
 
         This widget displays a single count, not a table of errors
 
         Returns:
             dict with 'name' and 'errors' keys
-            errors is a list with a single string: "PLL Detection Count - N" or "PLL Detection Count - No errors"
+            errors is a list with a single string: "PII Detection Count - N" or "PII Detection Count - No errors"
         """
         try:
-            print("[Type 4] Extracting PLL Count widget...")
+            print("[Type 4] Extracting PII Count widget...")
 
-            config = self.widget_config.get("pll_count")
+            config = self.widget_config.get("pii_count")
             if not config:
-                print("[Type 4] No configuration for pll_count")
-                return {"name": "PLL Detection Count", "errors": ["PLL Detection Count - No errors"]}
+                print("[Type 4] No configuration for pii_count")
+                return {"name": "PII Detection Count", "errors": ["PII Detection Count - No errors"]}
 
             widget_id = config["id"]
             widget = self.page.locator(f"#widget_box__{widget_id}")
@@ -356,7 +383,7 @@ class DashboardType4Automation:
             # Scroll widget into view
             try:
                 await widget.scroll_into_view_if_needed(timeout=5000)
-                print("[Type 4] Scrolled to PLL Count widget")
+                print("[Type 4] Scrolled to PII Count widget")
             except:
                 pass
 
@@ -366,7 +393,7 @@ class DashboardType4Automation:
 
             # Extract widget title
             title_selector = f"#widget_box__{widget_id} > div.group.flex.flex-initial.items-center.justify-between.space-x-3.rounded-t.p-3.w-full.hover\\:overflow-visible > div.flex.items-center.space-x-1.min-w-0 > a > h2"
-            title = "PLL Detection Count"
+            title = "PII Detection Count"
             try:
                 title = await self.page.locator(title_selector).inner_text(timeout=3000)
                 print(f"[Type 4] Found widget title: '{title}'")
@@ -383,7 +410,7 @@ class DashboardType4Automation:
                 count_text = await content_element.inner_text(timeout=2000)
                 count_text = count_text.strip()
 
-                print(f"[Type 4] PLL Count widget content: '{count_text}'")
+                print(f"[Type 4] PII Count widget content: '{count_text}'")
 
                 # Try to parse as integer
                 try:
@@ -407,13 +434,13 @@ class DashboardType4Automation:
                 return {"name": title, "errors": [message]}
 
             except Exception as e:
-                print(f"[Type 4] Error extracting PLL count: {e}")
+                print(f"[Type 4] Error extracting PII count: {e}")
                 message = f"{title} - No errors"
                 return {"name": title, "errors": [message]}
 
         except Exception as e:
-            print(f"[Type 4] Error in _extract_pll_count: {e}")
-            return {"name": "PLL Detection Count", "errors": ["PLL Detection Count - No errors"]}
+            print(f"[Type 4] Error in _extract_pii_count: {e}")
+            return {"name": "PII Detection Count", "errors": ["PII Detection Count - No errors"]}
 
     async def run_checks(self):
         """Main method to run all checks on the dashboard."""
@@ -424,39 +451,45 @@ class DashboardType4Automation:
             print(f"{'='*60}\n")
             
             # Step 1: Wait for dashboard to load
-            print("[Type 4] Step 1/5: Waiting for dashboard to load...")
+            print("[Type 4] Step 1/7: Waiting for dashboard to load...")
             await self._wait_for_dashboard_load()
             await self.page.wait_for_timeout(1000)
             
             # Step 2: Extract Charger-Errors widget
-            print("[Type 4] Step 2/6: Extracting Charger-Errors widget...")
+            print("[Type 4] Step 2/7: Extracting Charger-Errors widget...")
             charger_result = await self._extract_charger_errors()
             self.service_errors["charger"] = charger_result["errors"]
+            self.widgets.append(charger_result)
             
             # Step 3: Extract Keysmith-Errors widget
-            print("[Type 4] Step 3/6: Extracting Keysmith-Errors widget...")
+            print("[Type 4] Step 3/7: Extracting Keysmith-Errors widget...")
             keysmith_result = await self._extract_keysmith_errors()
             self.service_errors["keysmith"] = keysmith_result["errors"]
+            self.widgets.append(keysmith_result)
             
             # Step 4: Extract Neptune-Errors widget
-            print("[Type 4] Step 4/6: Extracting Neptune-Errors widget...")
+            print("[Type 4] Step 4/7: Extracting Neptune-Errors widget...")
             neptune_result = await self._extract_neptune_errors()
             self.service_errors["neptune"] = neptune_result["errors"]
+            self.widgets.append(neptune_result)
             
             # Step 5: Extract Roundup-Errors widget
-            print("[Type 4] Step 5/6: Extracting Roundup-Errors widget...")
+            print("[Type 4] Step 5/7: Extracting Roundup-Errors widget...")
             roundup_result = await self._extract_roundup_errors()
             self.service_errors["roundup"] = roundup_result["errors"]
+            self.widgets.append(roundup_result)
             
             # Step 6: Extract Zinc-Errors widget
-            print("[Type 4] Step 6/6: Extracting Zinc-Errors widget...")
+            print("[Type 4] Step 6/7: Extracting Zinc-Errors widget...")
             zinc_result = await self._extract_zinc_errors()
             self.service_errors["zinc"] = zinc_result["errors"]
+            self.widgets.append(zinc_result)
             
             # Step 7: Extract PLL Count widget
-            print("[Type 4] Step 7/7: Extracting PLL Count widget...")
-            pll_result = await self._extract_pll_count()
-            self.service_errors["pll_count"] = pll_result["errors"]
+            print("[Type 4] Step 7/7: Extracting PII Count widget...")
+            pii_result = await self._extract_pii_count()
+            self.service_errors["pii_count"] = pii_result["errors"]
+            self.widgets.append(pii_result)
             
             print(f"\n[Type 4] Checks completed successfully")
             print(f"{'='*60}\n")
