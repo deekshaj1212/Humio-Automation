@@ -2,11 +2,68 @@
 
 This module extracts error data from service-specific widgets on the Type 4 dashboard.
 Each widget contains a table with error names and their occurrence counts.
+Supports multiple environments with different widget IDs.
 """
 
 
 class DashboardType4Automation:
     """Automation logic for Dashboard Type 4 - Service-Errors Filter Known Issues."""
+    
+    # Widget configurations by environment
+    WIDGET_CONFIG = {
+        "env1": {
+            "charger": {
+                "id": "e3ed716e-b03e-4ec8-beb9-59956a659f00",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table"
+            },
+            "keysmith": {
+                "id": "9cea05d9-a425-4e82-a001-767bd5ef1132",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table"
+            },
+            "neptune": {
+                "id": "54ac38aa-73b4-43b0-9de8-e9ca94a4a22f",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table"
+            },
+            "roundup": {
+                "id": "173d8fc2-5b40-43a2-9821-55aa390c38d1",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table"
+            },
+            "zinc": {
+                "id": "96ccea84-6792-4b32-8f90-e3627d4e38ac",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div.flex.flex-col.flex-1.overflow-auto.h-full > table"
+            },
+            "pll_count": {
+                "id": "c5ffcf80-dfdc-4b3d-b34c-4c17fc6f0156",
+                "content_selector": "div.widget-box__content.z-40 > div > div.w-full.h-full > div > div > div"
+            }
+        },
+        "env2": {
+            "charger": {
+                "id": "ff564e84-ceb2-48b2-b2d8-bb1f6cf4b0e8",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table"
+            },
+            "keysmith": {
+                "id": "fc3cd48b-6094-4665-85e6-27ceab405632",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table"
+            },
+            "neptune": {
+                "id": "54ac38aa-73b4-43b0-9de8-e9ca94a4a22f",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table"
+            },
+            "roundup": {
+                "id": "173d8fc2-5b40-43a2-9821-55aa390c38d1",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table"
+            },
+            "zinc": {
+                "id": "96ccea84-6792-4b32-8f90-e3627d4e38ac",
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div.flex.flex-col.flex-1.overflow-auto.h-full > table"
+            },
+            "pll_count": {
+                "id": "93921e2f-64c3-4fbb-a40d-83977033d532",
+                "content_selector": "div.widget-box__content.z-40 > div > div.w-full.h-full > div > div > div"
+            }
+        }
+    }
     
     def __init__(self, page, environment=None):
         """Initialize with Playwright page object."""
@@ -14,6 +71,7 @@ class DashboardType4Automation:
         self.dashboard_name = "Service-Errors Filter Known Issues"
         self.environment = environment
         self.service_errors = {}  # Dictionary to store errors by service name
+        self.widget_config = self.WIDGET_CONFIG.get(environment, self.WIDGET_CONFIG["env1"])
 
     async def _wait_for_dashboard_load(self):
         """Wait for the dashboard loading bar to complete (100% width)."""
@@ -63,36 +121,155 @@ class DashboardType4Automation:
             await self.page.wait_for_timeout(3000)
             return True
 
-    async def _extract_charger_errors(self):
-        """Extract Charger-Errors widget data.
-        
-        Widget ID: e3ed716e-b03e-4ec8-beb9-59956a659f00
-        Table columns: Column 1 = error name, Column 2 = count
-        
-        Returns:
-            dict with 'name' and 'errors' keys
-            errors is a list of 'error_name - occurred X times' strings
-        """
+    async def _extract_table_errors_with_pagination(self, widget, table_selector, title):
+        """Extract error rows from a table widget, including all pagination pages if present."""
+        errors_dict = {}
+        max_pages = 20
+
+        async def extract_current_page(page_label=None):
+            table = widget.locator(table_selector)
+            await table.wait_for(state="visible", timeout=5000)
+
+            tbody = table.locator("tbody")
+            await tbody.wait_for(state="visible", timeout=3000)
+
+            rows = tbody.locator("tr")
+            row_count = await rows.count()
+            if page_label:
+                print(f"[Type 4] {title}: Found {row_count} rows (page {page_label})")
+            else:
+                print(f"[Type 4] {title}: Found {row_count} rows")
+
+            for i in range(row_count):
+                try:
+                    row = rows.nth(i)
+                    col1_cell = row.locator("td:nth-child(1)")
+                    error_name = await col1_cell.inner_text(timeout=2000)
+                    error_name = error_name.strip()
+
+                    col2_cell = row.locator("td:nth-child(2)")
+                    count_text = await col2_cell.inner_text(timeout=2000)
+                    count_text = count_text.strip()
+
+                    try:
+                        count = int(count_text)
+                    except:
+                        count = 1
+
+                    if error_name:
+                        errors_dict[error_name] = errors_dict.get(error_name, 0) + count
+                        print(f"[Type 4]   Row {i+1}: '{error_name}' - {count}")
+                except Exception as e:
+                    print(f"[Type 4] Error extracting row {i+1}: {e}")
+                    continue
+
         try:
-            print("[Type 4] Extracting Charger-Errors widget...")
-            
-            widget_id = "e3ed716e-b03e-4ec8-beb9-59956a659f00"
+            pagination_container = widget.locator(
+                "div.flex.flex-initial.justify-between.py-0\\.5.px-6.overflow-auto > humio-resize-observer > ol"
+            )
+
+            if await pagination_container.count() == 0:
+                await extract_current_page()
+            else:
+                # Extract current page once
+                buttons = pagination_container.locator("button[data-e2e='pagination-page']")
+                btn_count = await buttons.count()
+                if btn_count == 0:
+                    await extract_current_page()
+                else:
+                    current_label = None
+                    all_labels = []
+                    for i in range(btn_count):
+                        btn = buttons.nth(i)
+                        aria_label = await btn.get_attribute("aria-label")
+                        if aria_label:
+                            all_labels.append(aria_label)
+                        aria_current = await btn.get_attribute("aria-current")
+                        if aria_current and aria_current.lower() == "true":
+                            current_label = aria_label
+
+                    if current_label:
+                        await extract_current_page(current_label)
+                    else:
+                        await extract_current_page()
+
+                    # Click each other page by aria-label
+                    for label in all_labels:
+                        if current_label and label == current_label:
+                            continue
+
+                        target = pagination_container.locator(
+                            f"button[data-e2e='pagination-page'][aria-label='{label}']"
+                        )
+                        if await target.count() == 0:
+                            continue
+
+                        disabled_attr = await target.get_attribute("disabled")
+                        aria_disabled = await target.get_attribute("aria-disabled")
+                        if disabled_attr is not None or (aria_disabled and aria_disabled.lower() == "true"):
+                            continue
+
+                        prev_signature = ""
+                        try:
+                            prev_signature = (await widget.locator(table_selector).locator("tbody").inner_text(timeout=2000)).strip()
+                        except Exception:
+                            prev_signature = ""
+
+                        await target.click()
+                        await self.page.wait_for_timeout(800)
+
+                        changed = False
+                        for _ in range(10):
+                            await self.page.wait_for_timeout(500)
+                            try:
+                                new_signature = (await widget.locator(table_selector).locator("tbody").inner_text(timeout=2000)).strip()
+                            except Exception:
+                                new_signature = ""
+                            if new_signature and new_signature != prev_signature:
+                                changed = True
+                                break
+
+                        if not changed:
+                            print(f"[Type 4] {title}: Pagination did not change content after click, continuing.")
+                            continue
+
+                        await extract_current_page(label)
+
+        except Exception as e:
+            print(f"[Type 4] Error extracting table: {e}")
+
+        formatted_errors = []
+        for error_name, count in errors_dict.items():
+            times = "time" if count == 1 else "times"
+            formatted_errors.append(f"{error_name} - occurred {count} {times}")
+
+        print(f"[Type 4] {title}: Extracted {len(formatted_errors)} unique errors")
+        return {"name": title, "errors": formatted_errors}
+
+    async def _extract_widget_errors(self, service_name, title):
+        """Generic method to extract errors from a widget."""
+        try:
+            config = self.widget_config.get(service_name)
+            if not config:
+                print(f"[Type 4] No configuration for {service_name}")
+                return {"name": title, "errors": []}
+
+            widget_id = config["id"]
             widget = self.page.locator(f"#widget_box__{widget_id}")
-            
+
             # Wait for widget to be visible
             await widget.wait_for(state="visible", timeout=10000)
             await widget.scroll_into_view_if_needed(timeout=5000)
             await self.page.wait_for_timeout(1000)
-            
+
             # Extract widget title
             title_selector = f"#widget_box__{widget_id} > div.group.flex.flex-initial.items-center.justify-between.space-x-3.rounded-t.p-3.w-full.hover\\:overflow-visible > div.flex.items-center.space-x-1.min-w-0 > a > h2"
-            title = "Charger-Errors"
             try:
                 title = await self.page.locator(title_selector).inner_text(timeout=3000)
                 print(f"[Type 4] Found widget title: '{title}'")
             except Exception as e:
-                print(f"[Type 4] Could not extract title: {e}, using default")
-            
+                print(f"[Type 4] Could not extract title: {e}, using default: {title}")
+
             # Check for "No results found" message
             try:
                 no_results = widget.locator('div.text-deemphasized').filter(has_text="Search completed. No results found")
@@ -101,489 +278,66 @@ class DashboardType4Automation:
                 return {"name": title, "errors": []}
             except:
                 pass
-            
-            # Extract errors from table
-            errors_dict = {}  # Dictionary to store error_name: count mapping
-            
-            try:
-                # Wait for table to be visible
-                table = widget.locator("div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table")
-                await table.wait_for(state="visible", timeout=5000)
-                
-                # Wait for table body to have rows
-                tbody = table.locator("tbody")
-                await tbody.wait_for(state="visible", timeout=3000)
-                
-                # Get all rows
-                rows = tbody.locator("tr")
-                row_count = await rows.count()
-                
-                print(f"[Type 4] {title}: Found {row_count} rows")
-                
-                # Extract error name and count from each row
-                for i in range(row_count):
-                    try:
-                        row = rows.nth(i)
-                        
-                        # Column 1: Error string
-                        col1_cell = row.locator("td:nth-child(1)")
-                        error_name = await col1_cell.inner_text(timeout=2000)
-                        error_name = error_name.strip()
-                        
-                        # Column 2: Count
-                        col2_cell = row.locator("td:nth-child(2)")
-                        count_text = await col2_cell.inner_text(timeout=2000)
-                        count_text = count_text.strip()
-                        
-                        # Parse count
-                        try:
-                            count = int(count_text)
-                        except:
-                            count = 1
-                        
-                        if error_name:
-                            errors_dict[error_name] = count
-                            print(f"[Type 4]   Row {i+1}: '{error_name}' - {count}")
-                    
-                    except Exception as e:
-                        print(f"[Type 4] Error extracting row {i+1}: {e}")
-                        continue
-                
-                # Format errors as "error_name - occurred X times"
-                formatted_errors = []
-                for error_name, count in errors_dict.items():
-                    times = "time" if count == 1 else "times"
-                    formatted_errors.append(f"{error_name} - occurred {count} {times}")
-                
-                print(f"[Type 4] {title}: Extracted {len(formatted_errors)} unique errors")
-                return {"name": title, "errors": formatted_errors}
-            
-            except Exception as e:
-                print(f"[Type 4] Error extracting table: {e}")
-                return {"name": title, "errors": []}
-        
+
+            # Extract table errors with pagination support
+            table_selector = config["table_selector"]
+            return await self._extract_table_errors_with_pagination(widget, table_selector, title)
+
         except Exception as e:
-            print(f"[Type 4] Error in _extract_charger_errors: {e}")
-            return {"name": "Charger-Errors", "errors": []}
+            print(f"[Type 4] Error in _extract_widget_errors for {service_name}: {e}")
+            return {"name": title, "errors": []}
+
+    async def _extract_charger_errors(self):
+        """Extract Charger-Errors widget data."""
+        return await self._extract_widget_errors("charger", "Charger-Errors")
 
     async def _extract_keysmith_errors(self):
-        """Extract Keysmith-Errors widget data.
-        
-        Widget ID: 9cea05d9-a425-4e82-a001-767bd5ef1132
-        Table columns: Column 1 = error name, Column 2 = count
-        
-        Returns:
-            dict with 'name' and 'errors' keys
-            errors is a list of 'error_name - occurred X times' strings
-        """
-        try:
-            print("[Type 4] Extracting Keysmith-Errors widget...")
-            
-            widget_id = "9cea05d9-a425-4e82-a001-767bd5ef1132"
-            widget = self.page.locator(f"#widget_box__{widget_id}")
-            
-            # Scroll widget into view
-            try:
-                await widget.scroll_into_view_if_needed(timeout=5000)
-                print("[Type 4] Scrolled to Keysmith widget")
-            except Exception as e:
-                print(f"[Type 4] Could not scroll Keysmith widget: {e}")
-            
-            await self.page.wait_for_timeout(1000)
-            
-            # Wait for widget to be visible
-            await widget.wait_for(state="visible", timeout=10000)
-            await self.page.wait_for_timeout(500)
-            
-            # Extract widget title
-            title_selector = f"#widget_box__{widget_id} > div.group.flex.flex-initial.items-center.justify-between.space-x-3.rounded-t.p-3.w-full.hover\\:overflow-visible > div.flex.items-center.space-x-1.min-w-0 > a > h2"
-            title = "Keysmith-Errors"
-            try:
-                title = await self.page.locator(title_selector).inner_text(timeout=3000)
-                print(f"[Type 4] Found widget title: '{title}'")
-            except Exception as e:
-                print(f"[Type 4] Could not extract title: {e}, using default")
-            
-            # Check for "No results found" message
-            try:
-                no_results = widget.locator('div.text-deemphasized').filter(has_text="Search completed. No results found")
-                await no_results.wait_for(timeout=2000)
-                print(f"[Type 4] {title}: No results found")
-                return {"name": title, "errors": []}
-            except:
-                pass
-            
-            # Extract errors from table
-            errors_dict = {}  # Dictionary to store error_name: count mapping
-            
-            try:
-                # Wait for table to be visible
-                table = widget.locator("div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table")
-                await table.wait_for(state="visible", timeout=5000)
-                
-                # Wait for table body to have rows
-                tbody = table.locator("tbody")
-                await tbody.wait_for(state="visible", timeout=3000)
-                
-                # Get all rows
-                rows = tbody.locator("tr")
-                row_count = await rows.count()
-                
-                print(f"[Type 4] {title}: Found {row_count} rows")
-                
-                # Extract error name and count from each row
-                for i in range(row_count):
-                    try:
-                        row = rows.nth(i)
-                        
-                        # Column 1: Error string
-                        col1_cell = row.locator("td:nth-child(1)")
-                        error_name = await col1_cell.inner_text(timeout=2000)
-                        error_name = error_name.strip()
-                        
-                        # Column 2: Count
-                        col2_cell = row.locator("td:nth-child(2)")
-                        count_text = await col2_cell.inner_text(timeout=2000)
-                        count_text = count_text.strip()
-                        
-                        # Parse count
-                        try:
-                            count = int(count_text)
-                        except:
-                            count = 1
-                        
-                        if error_name:
-                            errors_dict[error_name] = count
-                            print(f"[Type 4]   Row {i+1}: '{error_name}' - {count}")
-                    
-                    except Exception as e:
-                        print(f"[Type 4] Error extracting row {i+1}: {e}")
-                        continue
-                
-                # Format errors as "error_name - occurred X times"
-                formatted_errors = []
-                for error_name, count in errors_dict.items():
-                    times = "time" if count == 1 else "times"
-                    formatted_errors.append(f"{error_name} - occurred {count} {times}")
-                
-                print(f"[Type 4] {title}: Extracted {len(formatted_errors)} unique errors")
-                return {"name": title, "errors": formatted_errors}
-            
-            except Exception as e:
-                print(f"[Type 4] Error extracting table: {e}")
-                return {"name": title, "errors": []}
-        
-        except Exception as e:
-            print(f"[Type 4] Error in _extract_keysmith_errors: {e}")
-            return {"name": "Keysmith-Errors", "errors": []}
+        """Extract Keysmith-Errors widget data."""
+        return await self._extract_widget_errors("keysmith", "Keysmith-Errors")
 
     async def _extract_neptune_errors(self):
-        """Extract Neptune-Errors widget data.
-        
-        Widget ID: 54ac38aa-73b4-43b0-9de8-e9ca94a4a22f
-        Table columns: Column 1 = error name, Column 2 = count
-        """
-        try:
-            print("[Type 4] Extracting Neptune-Errors widget...")
-            
-            widget_id = "54ac38aa-73b4-43b0-9de8-e9ca94a4a22f"
-            widget = self.page.locator(f"#widget_box__{widget_id}")
-            
-            # Scroll widget into view
-            try:
-                await widget.scroll_into_view_if_needed(timeout=5000)
-                print("[Type 4] Scrolled to Neptune widget")
-            except:
-                pass
-            
-            await self.page.wait_for_timeout(1000)
-            await widget.wait_for(state="visible", timeout=10000)
-            await self.page.wait_for_timeout(500)
-            
-            # Extract widget title
-            title_selector = f"#widget_box__{widget_id} > div.group.flex.flex-initial.items-center.justify-between.space-x-3.rounded-t.p-3.w-full.hover\\:overflow-visible > div.flex.items-center.space-x-1.min-w-0 > a > h2"
-            title = "Neptune-Errors"
-            try:
-                title = await self.page.locator(title_selector).inner_text(timeout=3000)
-                print(f"[Type 4] Found widget title: '{title}'")
-            except Exception as e:
-                print(f"[Type 4] Could not extract title: {e}, using default")
-            
-            # Check for "No results found"
-            try:
-                no_results = widget.locator('div.text-deemphasized').filter(has_text="Search completed. No results found")
-                await no_results.wait_for(timeout=2000)
-                print(f"[Type 4] {title}: No results found")
-                return {"name": title, "errors": []}
-            except:
-                pass
-            
-            # Extract errors from table
-            errors_dict = {}
-            
-            try:
-                table = widget.locator("div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table")
-                await table.wait_for(state="visible", timeout=5000)
-                tbody = table.locator("tbody")
-                await tbody.wait_for(state="visible", timeout=3000)
-                
-                rows = tbody.locator("tr")
-                row_count = await rows.count()
-                print(f"[Type 4] {title}: Found {row_count} rows")
-                
-                for i in range(row_count):
-                    try:
-                        row = rows.nth(i)
-                        col1_cell = row.locator("td:nth-child(1)")
-                        error_name = await col1_cell.inner_text(timeout=2000)
-                        error_name = error_name.strip()
-                        
-                        col2_cell = row.locator("td:nth-child(2)")
-                        count_text = await col2_cell.inner_text(timeout=2000)
-                        count_text = count_text.strip()
-                        
-                        try:
-                            count = int(count_text)
-                        except:
-                            count = 1
-                        
-                        if error_name:
-                            errors_dict[error_name] = count
-                            print(f"[Type 4]   Row {i+1}: '{error_name}' - {count}")
-                    except Exception as e:
-                        print(f"[Type 4] Error extracting row {i+1}: {e}")
-                        continue
-                
-                formatted_errors = []
-                for error_name, count in errors_dict.items():
-                    times = "time" if count == 1 else "times"
-                    formatted_errors.append(f"{error_name} - occurred {count} {times}")
-                
-                print(f"[Type 4] {title}: Extracted {len(formatted_errors)} unique errors")
-                return {"name": title, "errors": formatted_errors}
-            
-            except Exception as e:
-                print(f"[Type 4] Error extracting table: {e}")
-                return {"name": title, "errors": []}
-        
-        except Exception as e:
-            print(f"[Type 4] Error in _extract_neptune_errors: {e}")
-            return {"name": "Neptune-Errors", "errors": []}
+        """Extract Neptune-Errors widget data."""
+        return await self._extract_widget_errors("neptune", "Neptune-Errors")
 
     async def _extract_roundup_errors(self):
-        """Extract Roundup-Errors widget data.
-        
-        Widget ID: 173d8fc2-5b40-43a2-9821-55aa390c38d1
-        Table columns: Column 1 = error name, Column 2 = count
-        """
-        try:
-            print("[Type 4] Extracting Roundup-Errors widget...")
-            
-            widget_id = "173d8fc2-5b40-43a2-9821-55aa390c38d1"
-            widget = self.page.locator(f"#widget_box__{widget_id}")
-            
-            # Scroll widget into view
-            try:
-                await widget.scroll_into_view_if_needed(timeout=5000)
-                print("[Type 4] Scrolled to Roundup widget")
-            except:
-                pass
-            
-            await self.page.wait_for_timeout(1000)
-            await widget.wait_for(state="visible", timeout=10000)
-            await self.page.wait_for_timeout(500)
-            
-            # Extract widget title
-            title_selector = f"#widget_box__{widget_id} > div.group.flex.flex-initial.items-center.justify-between.space-x-3.rounded-t.p-3.w-full.hover\\:overflow-visible > div.flex.items-center.space-x-1.min-w-0 > a > h2"
-            title = "Roundup-Errors"
-            try:
-                title = await self.page.locator(title_selector).inner_text(timeout=3000)
-                print(f"[Type 4] Found widget title: '{title}'")
-            except Exception as e:
-                print(f"[Type 4] Could not extract title: {e}, using default")
-            
-            # Check for "No results found"
-            try:
-                no_results = widget.locator('div.text-deemphasized').filter(has_text="Search completed. No results found")
-                await no_results.wait_for(timeout=2000)
-                print(f"[Type 4] {title}: No results found")
-                return {"name": title, "errors": []}
-            except:
-                pass
-            
-            # Extract errors from table
-            errors_dict = {}
-            
-            try:
-                table = widget.locator("div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table")
-                await table.wait_for(state="visible", timeout=5000)
-                tbody = table.locator("tbody")
-                await tbody.wait_for(state="visible", timeout=3000)
-                
-                rows = tbody.locator("tr")
-                row_count = await rows.count()
-                print(f"[Type 4] {title}: Found {row_count} rows")
-                
-                for i in range(row_count):
-                    try:
-                        row = rows.nth(i)
-                        col1_cell = row.locator("td:nth-child(1)")
-                        error_name = await col1_cell.inner_text(timeout=2000)
-                        error_name = error_name.strip()
-                        
-                        col2_cell = row.locator("td:nth-child(2)")
-                        count_text = await col2_cell.inner_text(timeout=2000)
-                        count_text = count_text.strip()
-                        
-                        try:
-                            count = int(count_text)
-                        except:
-                            count = 1
-                        
-                        if error_name:
-                            errors_dict[error_name] = count
-                            print(f"[Type 4]   Row {i+1}: '{error_name}' - {count}")
-                    except Exception as e:
-                        print(f"[Type 4] Error extracting row {i+1}: {e}")
-                        continue
-                
-                formatted_errors = []
-                for error_name, count in errors_dict.items():
-                    times = "time" if count == 1 else "times"
-                    formatted_errors.append(f"{error_name} - occurred {count} {times}")
-                
-                print(f"[Type 4] {title}: Extracted {len(formatted_errors)} unique errors")
-                return {"name": title, "errors": formatted_errors}
-            
-            except Exception as e:
-                print(f"[Type 4] Error extracting table: {e}")
-                return {"name": title, "errors": []}
-        
-        except Exception as e:
-            print(f"[Type 4] Error in _extract_roundup_errors: {e}")
-            return {"name": "Roundup-Errors", "errors": []}
+        """Extract Roundup-Errors widget data."""
+        return await self._extract_widget_errors("roundup", "Roundup-Errors")
 
     async def _extract_zinc_errors(self):
-        """Extract Zinc-Errors widget data.
-        
-        Widget ID: 96ccea84-6792-4b32-8f90-e3627d4e38ac
-        Table columns: Column 1 = error name, Column 2 = count
-        Note: Table path includes 'div.flex.flex-col.flex-1.overflow-auto.h-full'
-        """
-        try:
-            print("[Type 4] Extracting Zinc-Errors widget...")
-            
-            widget_id = "96ccea84-6792-4b32-8f90-e3627d4e38ac"
-            widget = self.page.locator(f"#widget_box__{widget_id}")
-            
-            # Scroll widget into view
-            try:
-                await widget.scroll_into_view_if_needed(timeout=5000)
-                print("[Type 4] Scrolled to Zinc widget")
-            except:
-                pass
-            
-            await self.page.wait_for_timeout(1000)
-            await widget.wait_for(state="visible", timeout=10000)
-            await self.page.wait_for_timeout(500)
-            
-            # Extract widget title
-            title_selector = f"#widget_box__{widget_id} > div.group.flex.flex-initial.items-center.justify-between.space-x-3.rounded-t.p-3.w-full.hover\\:overflow-visible > div.flex.items-center.space-x-1.min-w-0 > a > h2"
-            title = "Zinc-Errors"
-            try:
-                title = await self.page.locator(title_selector).inner_text(timeout=3000)
-                print(f"[Type 4] Found widget title: '{title}'")
-            except Exception as e:
-                print(f"[Type 4] Could not extract title: {e}, using default")
-            
-            # Check for "No results found"
-            try:
-                no_results = widget.locator('div.text-deemphasized').filter(has_text="Search completed. No results found")
-                await no_results.wait_for(timeout=2000)
-                print(f"[Type 4] {title}: No results found")
-                return {"name": title, "errors": []}
-            except:
-                pass
-            
-            # Extract errors from table (note: slightly different path with overflow-auto)
-            errors_dict = {}
-            
-            try:
-                table = widget.locator("div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div.flex.flex-col.flex-1.overflow-auto.h-full > table")
-                await table.wait_for(state="visible", timeout=5000)
-                tbody = table.locator("tbody")
-                await tbody.wait_for(state="visible", timeout=3000)
-                
-                rows = tbody.locator("tr")
-                row_count = await rows.count()
-                print(f"[Type 4] {title}: Found {row_count} rows")
-                
-                for i in range(row_count):
-                    try:
-                        row = rows.nth(i)
-                        col1_cell = row.locator("td:nth-child(1)")
-                        error_name = await col1_cell.inner_text(timeout=2000)
-                        error_name = error_name.strip()
-                        
-                        col2_cell = row.locator("td:nth-child(2)")
-                        count_text = await col2_cell.inner_text(timeout=2000)
-                        count_text = count_text.strip()
-                        
-                        try:
-                            count = int(count_text)
-                        except:
-                            count = 1
-                        
-                        if error_name:
-                            errors_dict[error_name] = count
-                            print(f"[Type 4]   Row {i+1}: '{error_name}' - {count}")
-                    except Exception as e:
-                        print(f"[Type 4] Error extracting row {i+1}: {e}")
-                        continue
-                
-                formatted_errors = []
-                for error_name, count in errors_dict.items():
-                    times = "time" if count == 1 else "times"
-                    formatted_errors.append(f"{error_name} - occurred {count} {times}")
-                
-                print(f"[Type 4] {title}: Extracted {len(formatted_errors)} unique errors")
-                return {"name": title, "errors": formatted_errors}
-            
-            except Exception as e:
-                print(f"[Type 4] Error extracting table: {e}")
-                return {"name": title, "errors": []}
-        
-        except Exception as e:
-            print(f"[Type 4] Error in _extract_zinc_errors: {e}")
-            return {"name": "Zinc-Errors", "errors": []}
+        """Extract Zinc-Errors widget data."""
+        return await self._extract_widget_errors("zinc", "Zinc-Errors")
 
     async def _extract_pll_count(self):
         """Extract PLL Count widget data.
-        
-        Widget ID: c5ffcf80-dfdc-4b3d-b34c-4c17fc6f0156
+
         This widget displays a single count, not a table of errors
-        
+
         Returns:
             dict with 'name' and 'errors' keys
-            errors is a list with a single string: "Pll detection Count - N" or "Pll detection Count - No errors"
+            errors is a list with a single string: "PLL Detection Count - N" or "PLL Detection Count - No errors"
         """
         try:
             print("[Type 4] Extracting PLL Count widget...")
-            
-            widget_id = "c5ffcf80-dfdc-4b3d-b34c-4c17fc6f0156"
+
+            config = self.widget_config.get("pll_count")
+            if not config:
+                print("[Type 4] No configuration for pll_count")
+                return {"name": "PLL Detection Count", "errors": ["PLL Detection Count - No errors"]}
+
+            widget_id = config["id"]
             widget = self.page.locator(f"#widget_box__{widget_id}")
-            
+
             # Scroll widget into view
             try:
                 await widget.scroll_into_view_if_needed(timeout=5000)
                 print("[Type 4] Scrolled to PLL Count widget")
             except:
                 pass
-            
+
             await self.page.wait_for_timeout(1000)
             await widget.wait_for(state="visible", timeout=10000)
             await self.page.wait_for_timeout(500)
-            
+
             # Extract widget title
             title_selector = f"#widget_box__{widget_id} > div.group.flex.flex-initial.items-center.justify-between.space-x-3.rounded-t.p-3.w-full.hover\\:overflow-visible > div.flex.items-center.space-x-1.min-w-0 > a > h2"
             title = "PLL Detection Count"
@@ -592,19 +346,19 @@ class DashboardType4Automation:
                 print(f"[Type 4] Found widget title: '{title}'")
             except Exception as e:
                 print(f"[Type 4] Could not extract title: {e}, using default")
-            
+
             # Extract count from content area
             try:
-                content_selector = f"#widget_box__{widget_id} > div.widget-box__content.z-40 > div > div.w-full.h-full > div > div > div"
-                content_element = self.page.locator(content_selector)
+                content_selector = config["content_selector"]
+                content_element = self.page.locator(f"#widget_box__{widget_id} > {content_selector}")
                 await content_element.wait_for(state="visible", timeout=5000)
-                
+
                 # Get the inner text which contains the count
                 count_text = await content_element.inner_text(timeout=2000)
                 count_text = count_text.strip()
-                
+
                 print(f"[Type 4] PLL Count widget content: '{count_text}'")
-                
+
                 # Try to parse as integer
                 try:
                     count = int(count_text)
@@ -616,21 +370,21 @@ class DashboardType4Automation:
                         count = int(match.group())
                     else:
                         count = 0
-                
+
                 # Format the output
                 if count == 0:
                     message = f"{title} - No errors"
                 else:
                     message = f"{title} - {count}"
-                
+
                 print(f"[Type 4] {title}: {message}")
                 return {"name": title, "errors": [message]}
-            
+
             except Exception as e:
                 print(f"[Type 4] Error extracting PLL count: {e}")
                 message = f"{title} - No errors"
                 return {"name": title, "errors": [message]}
-        
+
         except Exception as e:
             print(f"[Type 4] Error in _extract_pll_count: {e}")
             return {"name": "PLL Detection Count", "errors": ["PLL Detection Count - No errors"]}
