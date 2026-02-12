@@ -224,8 +224,8 @@ async def run_all_environments_comprehensive_report():
         """Extract only the main error message from a full error text."""
         import re
         
-        # Remove leading dashes and spaces (e.g., "- - " or "- ")
-        error_text = re.sub(r'^[-\s]+', '', error_text)
+        # Remove leading dashes/brackets and spaces (e.g., "- - ", "- ", or "] ")
+        error_text = re.sub(r'^[\]\-\s]+', '', error_text)
         
         # Remove leading IDs and timestamps (hex strings, UUIDs, timestamps)
         # Pattern: Remove leading hex/UUID, file paths with line numbers
@@ -239,6 +239,10 @@ async def run_all_environments_comprehensive_report():
         module_prefix = re.match(r'^([A-Za-z0-9_.]+):\s+', error_text)
         if module_prefix and '.' in module_prefix.group(1):
             error_text = error_text[module_prefix.end():]
+
+        # Drop module-only lines like "agent.template.server"
+        if re.match(r'^[A-Za-z0-9_.]+$', error_text) and '.' in error_text:
+            return ""
 
         # Special case: template server errors
         if error_text.lower().startswith('template server:'):
@@ -315,7 +319,7 @@ async def run_all_environments_comprehensive_report():
     def _summarize_errors(errors):
         """Summarize errors by extracting main message and counting occurrences."""
         # First, extract main error messages from all errors
-        extracted_errors = [_extract_main_error(error) for error in errors]
+        extracted_errors = [e for e in (_extract_main_error(error) for error in errors) if e]
         
         # Count occurrences of each main error
         counter = Counter(extracted_errors)
@@ -408,6 +412,8 @@ async def run_all_environments_comprehensive_report():
                                 if widget_errors and isinstance(widget_errors, list):
                                     report_lines.append(f"  o {widget_name}")
                                     for error in _summarize_errors(widget_errors):
+                                        if widget_name == "PII Detection Count" and error.startswith("PII Detection Count - "):
+                                            error = error.replace("PII Detection Count - ", "", 1)
                                         report_lines.append(f"    ▪ {error}")
                                 else:
                                     report_lines.append(f"  o {widget_name} - No errors")
