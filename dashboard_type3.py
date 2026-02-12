@@ -380,7 +380,18 @@ class DashboardType3Automation:
                 await self.page.evaluate("window.scrollBy(0, 2000)")
                 await self.page.wait_for_timeout(1000)
             
-            await self.page.wait_for_timeout(500)
+            # Wait much longer for widget to fully load and search to complete
+            await self.page.wait_for_timeout(3000)
+            
+            # Check if widget is still searching and wait if needed
+            try:
+                searching_div = widget.locator('div.text-deemphasized').filter(has_text="Searching")
+                await searching_div.wait_for(timeout=500)
+                print(f"Widget still searching, waiting for completion...")
+                # Wait for search to complete
+                await self.page.wait_for_timeout(5000)
+            except:
+                pass
             
             try:
                 table = widget.locator('div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table')
@@ -451,7 +462,18 @@ class DashboardType3Automation:
         try:
             widget = self.page.locator("#widget_box__79b189d5-cfa5-48be-846f-e9073556b286")
             await widget.scroll_into_view_if_needed()
-            await self.page.wait_for_timeout(500)
+            # Wait longer for widget to fully load
+            await self.page.wait_for_timeout(3000)
+            
+            # Check if widget is still searching and wait if needed
+            try:
+                searching_div = widget.locator('div.text-deemphasized').filter(has_text="Searching")
+                await searching_div.wait_for(timeout=500)
+                print(f"Widget still searching, waiting for completion...")
+                await self.page.wait_for_timeout(5000)
+            except:
+                pass
+            
             try:
                 no_results = widget.locator('div.text-deemphasized').filter(has_text="Search completed. No results found")
                 await no_results.wait_for(timeout=2000)
@@ -497,6 +519,19 @@ class DashboardType3Automation:
                     break
                 except:
                     continue
+            
+            if widget:
+                # Wait longer for widget to fully load
+                await self.page.wait_for_timeout(3000)
+                
+                # Check if widget is still searching and wait if needed
+                try:
+                    searching_div = widget.locator('div.text-deemphasized').filter(has_text="Searching")
+                    await searching_div.wait_for(timeout=500)
+                    print(f"Widget still searching, waiting for completion...")
+                    await self.page.wait_for_timeout(5000)
+                except:
+                    pass
             
             if not widget:
                 print(f"PIN Generation Failure widget not found")
@@ -566,7 +601,18 @@ class DashboardType3Automation:
             except:
                 await self.page.evaluate("window.scrollBy(0, 2000)")
                 await self.page.wait_for_timeout(1000)
-            await self.page.wait_for_timeout(500)
+            
+            # Wait longer for widget to fully load and search to complete
+            await self.page.wait_for_timeout(3000)
+            
+            # Check if widget is still searching and wait if needed
+            try:
+                searching_div = widget.locator('div.text-deemphasized').filter(has_text="Searching")
+                await searching_div.wait_for(timeout=500)
+                print(f"Widget still searching, waiting for completion...")
+                await self.page.wait_for_timeout(5000)
+            except:
+                pass
             
             try:
                 await widget.wait_for(timeout=3000)

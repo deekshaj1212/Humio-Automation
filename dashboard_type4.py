@@ -40,7 +40,7 @@ class DashboardType4Automation:
         "env2": {
             "charger": {
                 "id": "ff564e84-ceb2-48b2-b2d8-bb1f6cf4b0e8",
-                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table"
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div.flex.flex-col.flex-1.overflow-auto.h-full > table"
             },
             "keysmith": {
                 "id": "fc3cd48b-6094-4665-85e6-27ceab405632",
@@ -52,7 +52,7 @@ class DashboardType4Automation:
             },
             "roundup": {
                 "id": "173d8fc2-5b40-43a2-9821-55aa390c38d1",
-                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table"
+                "table_selector": "div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div.flex.flex-col.flex-1.overflow-auto.h-full > table"
             },
             "zinc": {
                 "id": "96ccea84-6792-4b32-8f90-e3627d4e38ac",
@@ -198,7 +198,7 @@ class DashboardType4Automation:
                     row = rows.nth(i)
                     col1_cell = row.locator("td:nth-child(1)")
                     error_name = await col1_cell.inner_text(timeout=2000)
-                    error_name = error_name.strip()
+                    error_name = error_name.strip().lstrip('-').rstrip(':').strip()
 
                     col2_cell = row.locator("td:nth-child(2)")
                     count_text = await col2_cell.inner_text(timeout=2000)
@@ -217,15 +217,36 @@ class DashboardType4Automation:
                     continue
 
         try:
-            pagination_container = widget.locator(
-                "div.flex.flex-initial.justify-between.py-0\\.5.px-6.overflow-auto > humio-resize-observer > ol"
-            )
-
-            if await pagination_container.count() == 0:
+            # Try multiple selectors for pagination container (flexible detection)
+            pagination_selectors = [
+                "div.flex.flex-initial.justify-between.py-0\\.5.px-6.overflow-auto > humio-resize-observer > ol",
+                "div.flex.flex-initial.justify-between.overflow-auto > humio-resize-observer > ol",
+                "humio-resize-observer > ol",
+                "ol button[data-e2e='pagination-page']"
+            ]
+            
+            pagination_container = None
+            buttons = None
+            
+            for selector in pagination_selectors:
+                try:
+                    test_container = widget.locator(selector)
+                    count = await test_container.count()
+                    if count > 0:
+                        pagination_container = test_container
+                        # If we matched a button selector directly, get parent ol
+                        if "button" in selector:
+                            buttons = test_container
+                        else:
+                            buttons = test_container.locator("button[data-e2e='pagination-page']")
+                        break
+                except:
+                    continue
+            
+            if buttons is None or await buttons.count() == 0:
                 await extract_current_page()
             else:
                 # Extract current page once
-                buttons = pagination_container.locator("button[data-e2e='pagination-page']")
                 btn_count = await buttons.count()
                 if btn_count == 0:
                     await extract_current_page()
@@ -251,12 +272,20 @@ class DashboardType4Automation:
                         if current_label and label == current_label:
                             continue
 
-                        target = pagination_container.locator(
-                            f"button[data-e2e='pagination-page'][aria-label='{label}']"
-                        )
+                        # Find the button with matching aria-label
+                        target = buttons.filter(
+                            has=widget.locator(f"button[data-e2e='pagination-page'][aria-label='{label}']")
+                        ).first
                         if await target.count() == 0:
-                            continue
-
+                            target = buttons.nth(0)
+                            # Try by aria-label directly on buttons
+                            for i in range(await buttons.count()):
+                                btn = buttons.nth(i)
+                                btn_label = await btn.get_attribute("aria-label")
+                                if btn_label == label:
+                                    target = btn
+                                    break
+                        
                         disabled_attr = await target.get_attribute("disabled")
                         aria_disabled = await target.get_attribute("aria-disabled")
                         if disabled_attr is not None or (aria_disabled and aria_disabled.lower() == "true"):

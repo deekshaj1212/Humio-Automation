@@ -89,16 +89,37 @@ class DashboardType2Automation:
             error_link = self.page.get_by_role("link", name="Charger Errors")
             widget = error_link.locator('..').locator('..').locator('..')
             await widget.scroll_into_view_if_needed()
-            await self.page.wait_for_timeout(500)
+            # Wait longer for widget to fully load and search to complete
+            await self.page.wait_for_timeout(3000)
+            
+            # Check if widget is still loading/searching
+            try:
+                searching_div = widget.locator('div.text-deemphasized').filter(has_text="Searching")
+                await searching_div.wait_for(timeout=500)
+                # Still searching, wait more
+                print(f"Widget still searching, waiting...")
+                await self.page.wait_for_timeout(3000)
+            except:
+                pass
+            
+            # Check for no results
             no_results_div = widget.locator('div.text-deemphasized').filter(has_text="Search completed. No results found")
             try:
                 await no_results_div.wait_for(timeout=3000)
                 print(f"Charger Errors: No results found (no errors)")
                 return None  
             except:
-                error_text = await widget.inner_text()
-                print(f"Found Charger Errors: {error_text[:100]}...")
-                return error_text
+                # Check if there's an error table
+                try:
+                    table = widget.locator('div.widget-box__content table')
+                    await table.wait_for(timeout=2000)
+                    # Table exists, don't return text content
+                    print(f"Charger Errors: Has error table (not extracting text)")
+                    return None
+                except:
+                    # Still searching or loading
+                    print(f"Charger Errors: Widget still loading")
+                    return None
         except Exception as e:
             print(f"Could not extract charger errors: {e}")
             return None

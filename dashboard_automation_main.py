@@ -224,6 +224,9 @@ async def run_all_environments_comprehensive_report():
         """Extract only the main error message from a full error text."""
         import re
         
+        # Remove leading dashes and spaces (e.g., "- - " or "- ")
+        error_text = re.sub(r'^[-\s]+', '', error_text)
+        
         # Remove leading IDs and timestamps (hex strings, UUIDs, timestamps)
         # Pattern: Remove leading hex/UUID, file paths with line numbers
         error_text = re.sub(r'^(?:[a-f0-9]{16,}\s+){1,3}', '', error_text)
@@ -231,6 +234,19 @@ async def run_all_environments_comprehensive_report():
         
         # Remove file paths and line numbers (e.g., "aiokafka.consumer.fetcher:665 ")
         error_text = re.sub(r'^[\w.]+:\d+\s+', '', error_text)
+
+        # Remove leading module prefixes without line numbers (e.g., "agent.template.server: ")
+        module_prefix = re.match(r'^([A-Za-z0-9_.]+):\s+', error_text)
+        if module_prefix and '.' in module_prefix.group(1):
+            error_text = error_text[module_prefix.end():]
+
+        # Special case: template server errors
+        if error_text.lower().startswith('template server:'):
+            return error_text.split(':', 1)[1].strip()
+
+        # Preserve full message for specific recurring error
+        if 'Unhandled exception checking is_ready for module' in error_text:
+            return error_text.strip()
         
         # Extract specific error patterns:
         
@@ -261,9 +277,33 @@ async def run_all_environments_comprehensive_report():
         # 4. If no special pattern, try to get first meaningful sentence (before colon with lots of detail)
         parts = error_text.split(':')
         if len(parts) >= 2:
+            # Check if the pattern looks like an error message with error type
+            # e.g., "Request failed: ErrorType: Description" or "Error: Description"
+            if len(parts) >= 3:
+                second_part = parts[1].strip()
+                # If second part looks like an error class (ends with Error, Exception, or is PascalCase)
+                if (second_part.endswith(('Error', 'Exception')) or 
+                    (second_part and second_part[0].isupper() and 'Error' in second_part)):
+                    # Include first three parts for full context
+                    return f"{parts[0].strip()}: {parts[1].strip()}: {parts[2].strip()}"
+            
+            # For two-part errors, check if second part is meaningful description
+            if len(parts) == 2:
+                first_part = parts[0].strip()
+                second_part = parts[1].strip()
+                
+                # If first part is short and descriptive (like "Connection timeout", "Request failed")
+                # and second part is a description, include both
+                if len(first_part) < 50 and len(second_part) < 100 and len(second_part) > 5:
+                    # Avoid including server addresses, ports, or overly technical details
+                    if not re.search(r'[a-z0-9.-]+:\d+', second_part, re.IGNORECASE):
+                        return f"{first_part}: {second_part}"
+                
             # If first part is very short (likely just a label), include second part too
             if len(parts[0].strip()) < 20 and len(parts) > 2:
                 return f"{parts[0].strip()}: {parts[1].strip()}"
+            
+            # For longer first parts, just return it
             return parts[0].strip()
         
         # 5. Fallback: truncate at first 150 chars if it's very long
@@ -289,7 +329,7 @@ async def run_all_environments_comprehensive_report():
 
     report_lines = []
     now = datetime.now()
-    report_lines.append(f"{_ordinal(now.day)} {now.strftime('%B')}")
+    report_lines.append(f"**{_ordinal(now.day)} {now.strftime('%B')}**")
     dashboard_display_names = {
         "dashboard_type_2": "COM Subscription And Consumption",
         "dashboard_type_1": "Data Ingestion to Sustainability Insight Center",
@@ -299,7 +339,7 @@ async def run_all_environments_comprehensive_report():
 
     for env_display in ["PRE-PROD", "ANE1", "EUC1", "USW2"]:
         if env_display in all_results:
-            report_lines.append(f"\n{env_display}")
+            report_lines.append(f"\n**{env_display}**")
             env_data = all_results[env_display]
             if isinstance(env_data, dict) and env_data.get("status") in ["LOGIN_FAILED", "FAILED"]:
                 report_lines.append(f"✗ {env_data.get('error', 'Failed')}")
@@ -309,7 +349,7 @@ async def run_all_environments_comprehensive_report():
             for db_type in dashboard_order:
                 if db_type in env_data:
                     db_display = dashboard_display_names[db_type]
-                    report_lines.append(f"•\t{db_display}")
+                    report_lines.append(f"• **{db_display}**")
                     dashboard_obj = env_data[db_type]
 
                     if db_type == "dashboard_type_3":
@@ -318,46 +358,46 @@ async def run_all_environments_comprehensive_report():
                             error_count = 0
 
                             if "oae" in errors_dict and isinstance(errors_dict["oae"], list) and errors_dict["oae"]:
-                                report_lines.append("o\tError Details During iLO Onboard Activation Job")
+                                report_lines.append("  o Error Details During iLO Onboard Activation Job")
                                 for error_item in _summarize_errors(errors_dict["oae"]):
-                                    report_lines.append(f"\t{error_item}")
+                                    report_lines.append(f"    ▪ {error_item}")
                                     error_count += 1
 
                             if "table" in errors_dict and isinstance(errors_dict["table"], list) and errors_dict["table"]:
-                                report_lines.append("o\tSubscription key assignment failure details")
+                                report_lines.append("  o Subscription key assignment failure details")
                                 for error_item in _summarize_errors(errors_dict["table"]):
-                                    report_lines.append(f"\t{error_item}")
+                                    report_lines.append(f"    ▪ {error_item}")
                                     error_count += 1
 
                             if "pin" in errors_dict and isinstance(errors_dict["pin"], list) and errors_dict["pin"]:
-                                report_lines.append("o\tPIN Generation Failure")
+                                report_lines.append("  o PIN Generation Failure")
                                 for error_item in _summarize_errors(errors_dict["pin"]):
-                                    report_lines.append(f"\t{error_item}")
+                                    report_lines.append(f"    ▪ {error_item}")
                                     error_count += 1
 
                             if "compute" in errors_dict and isinstance(errors_dict["compute"], list) and errors_dict["compute"]:
-                                report_lines.append("o\tCompute Provision Failure Details")
+                                report_lines.append("  o Compute Provision Failure Details")
                                 for error_item in _summarize_errors(errors_dict["compute"]):
-                                    report_lines.append(f"\t{error_item}")
+                                    report_lines.append(f"    ▪ {error_item}")
                                     error_count += 1
 
                             if "jwt" in errors_dict:
-                                report_lines.append(f"o\tJWT generation failed - {errors_dict['jwt']}")
+                                report_lines.append(f"  o JWT generation failed - {errors_dict['jwt']}")
                                 error_count += 1
                             if "subscription" in errors_dict:
-                                report_lines.append(f"o\tSubscription Key Claim Failure - {errors_dict['subscription']}")
+                                report_lines.append(f"  o Subscription Key Claim Failure - {errors_dict['subscription']}")
                                 error_count += 1
                             if "device" in errors_dict:
-                                report_lines.append(f"o\tDevice not available GLP Pool - {errors_dict['device']}")
+                                report_lines.append(f"  o Device not available GLP Pool - {errors_dict['device']}")
                                 error_count += 1
                             if "location" in errors_dict:
-                                report_lines.append(f"o\tLocation/Tags/Sdc Patch Failure - {errors_dict['location']}")
+                                report_lines.append(f"  o Location/Tags/Sdc Patch Failure - {errors_dict['location']}")
                                 error_count += 1
 
                             if error_count == 0:
-                                report_lines.append("o\tNo errors")
+                                report_lines.append("  o No errors")
                         else:
-                            report_lines.append("o\tNo errors")
+                            report_lines.append("  o No errors")
 
                     elif db_type == "dashboard_type_4":
                         if hasattr(dashboard_obj, "widgets") and dashboard_obj.widgets:
@@ -366,27 +406,19 @@ async def run_all_environments_comprehensive_report():
                                 widget_errors = widget_data.get("errors", [])
                                 
                                 if widget_errors and isinstance(widget_errors, list):
-                                    summarized_errors = _summarize_errors(widget_errors)
-                                    if (
-                                        widget_name == "PII Detection Count"
-                                        and len(summarized_errors) == 1
-                                        and summarized_errors[0].startswith(widget_name)
-                                    ):
-                                        report_lines.append(f"o\t{summarized_errors[0]}")
-                                    else:
-                                        report_lines.append(f"o\t{widget_name}")
-                                        for error in summarized_errors:
-                                            report_lines.append(f"\t{error}")
+                                    report_lines.append(f"  o {widget_name}")
+                                    for error in _summarize_errors(widget_errors):
+                                        report_lines.append(f"    ▪ {error}")
                                 else:
-                                    report_lines.append(f"o\t{widget_name} - No errors")
+                                    report_lines.append(f"  o {widget_name} - No errors")
                         else:
-                            report_lines.append("o\tNo widget data available")
+                            report_lines.append("  o No widget data available")
 
                     else:
                         if hasattr(dashboard_obj, "result"):
                             result = dashboard_obj.result
                             if "No errors" in result:
-                                report_lines.append("o\tNo errors")
+                                report_lines.append("  o No errors")
                             elif " - " in result:
                                 parts = result.split(" - ", 1)
                                 if len(parts) > 1:
@@ -394,11 +426,11 @@ async def run_all_environments_comprehensive_report():
                                     for error in errors:
                                         error_clean = error.strip()
                                         if error_clean:
-                                            report_lines.append(f"o\t{error_clean}")
+                                            report_lines.append(f"  o {error_clean}")
                             else:
-                                report_lines.append("o\tNo data")
+                                report_lines.append("  o No data")
                         else:
-                            report_lines.append("o\tNo data")
+                            report_lines.append("  o No data")
 
     print(f"\n{'='*70}")
     print("FINAL SUMMARY REPORT")
@@ -414,7 +446,7 @@ async def run_all_environments_comprehensive_report():
 async def main():
     await run_all_environments_comprehensive_report()
     # await run_all_dashboards_in_environment(environment="env1")
-    # await run_single_dashboard(environment="env1", dashboard_type="dashboard_type_4")
+    # await run_single_dashboard(environment="env4", dashboard_type="dashboard_type_4")
 
 
 if __name__ == "__main__":
