@@ -1,14 +1,6 @@
-"""Dashboard Type 4 - Service-Errors Filter Known Issues automation.
-
-This module extracts error data from service-specific widgets on the Type 4 dashboard.
-Each widget contains a table with error names and their occurrence counts.
-Supports multiple environments with different widget IDs.
-"""
-
+#Dashboard Type 4 - Service-Errors Filter Known Issues automation.
 
 class DashboardType4Automation:
-    """Automation logic for Dashboard Type 4 - Service-Errors Filter Known Issues."""
-    
     # Widget configurations by environment
     WIDGET_CONFIG = {
         "env1": {
@@ -118,7 +110,6 @@ class DashboardType4Automation:
     }
     
     def __init__(self, page, environment=None):
-        """Initialize with Playwright page object."""
         self.page = page
         self.dashboard_name = "Service-Errors Filter Known Issues"
         self.environment = environment
@@ -127,11 +118,10 @@ class DashboardType4Automation:
         self.widget_config = self.WIDGET_CONFIG.get(environment, self.WIDGET_CONFIG["env1"])
 
     async def _wait_for_dashboard_load(self):
-        """Wait for the dashboard loading bar to complete (100% width)."""
+        #Wait for the dashboard loading bar to complete.
         try:
             print("[Type 4] Waiting for dashboard to load completely...")
             loading_bar = self.page.locator("#humio-doc > div > div > div.h-px.flex-1.flex.items-stretch > div > div > div.dashboard__top-panel > div > div > div.absolute.inset-x-0.top-0 > div > div")
-
             # Wait for progress bar container to appear - with shorter timeout
             try:
                 await loading_bar.wait_for(state="visible", timeout=5000)
@@ -148,17 +138,14 @@ class DashboardType4Automation:
                 try:
                     progress_bar = loading_bar.locator("div.progress-bar__progress")
                     style_attr = await progress_bar.get_attribute("style", timeout=1000)
-
                     if style_attr and "width: 100%" in style_attr:
                         print("[Type 4] Dashboard fully loaded (100%)")
                         await self.page.wait_for_timeout(1000)
                         return True
-
                     if style_attr and "width:" in style_attr:
                         width_match = style_attr.split("width:")[1].split(";")[0].strip()
                         if i % 5 == 0:
                             print(f"[Type 4] Loading... ({width_match})")
-
                     await self.page.wait_for_timeout(1000)
                 except Exception as e:
                     if i == 0:
@@ -168,7 +155,6 @@ class DashboardType4Automation:
 
             print("[Type 4] Loading bar did not reach 100% within timeout, proceeding anyway...")
             return True
-
         except Exception as e:
             print(f"[Type 4] Dashboard load check failed: {e}, proceeding anyway...")
             await self.page.wait_for_timeout(3000)
@@ -177,57 +163,62 @@ class DashboardType4Automation:
     async def _extract_table_errors_with_pagination(self, widget, table_selector, title):
         """Extract error rows from a table widget, including all pagination pages if present."""
         errors_dict = {}
-        max_pages = 20
-
+        max_pages = 10  # Check first 10 pages
+        prev_page_errors = set()
+        repeating_detected = False
+        has_many_pages = False  # Track if there are many pages
+        
         async def extract_current_page(page_label=None):
+            nonlocal prev_page_errors, repeating_detected
             table = widget.locator(table_selector)
             await table.wait_for(state="visible", timeout=5000)
-
             tbody = table.locator("tbody")
             await tbody.wait_for(state="visible", timeout=3000)
-
             rows = tbody.locator("tr")
             row_count = await rows.count()
             if page_label:
                 print(f"[Type 4] {title}: Found {row_count} rows (page {page_label})")
             else:
                 print(f"[Type 4] {title}: Found {row_count} rows")
-
+            
+            current_page_errors = set()
             for i in range(row_count):
                 try:
                     row = rows.nth(i)
                     col1_cell = row.locator("td:nth-child(1)")
                     error_name = await col1_cell.inner_text(timeout=2000)
                     error_name = error_name.strip().lstrip('-').rstrip(':').strip()
-
                     col2_cell = row.locator("td:nth-child(2)")
                     count_text = await col2_cell.inner_text(timeout=2000)
                     count_text = count_text.strip()
-
                     try:
                         count = int(count_text)
                     except:
                         count = 1
-
                     if error_name:
+                        current_page_errors.add(error_name)
                         errors_dict[error_name] = errors_dict.get(error_name, 0) + count
                         print(f"[Type 4]   Row {i+1}: '{error_name}' - {count}")
                 except Exception as e:
                     print(f"[Type 4] Error extracting row {i+1}: {e}")
                     continue
+            
+            # Check if same errors appear on consecutive pages
+            if prev_page_errors and current_page_errors == prev_page_errors:
+                repeating_detected = True
+                print(f"[Type 4] {title}: Same errors detected on consecutive pages")
+            
+            prev_page_errors = current_page_errors
 
         try:
-            # Try multiple selectors for pagination container (flexible detection)
             pagination_selectors = [
                 "div.flex.flex-initial.justify-between.py-0\\.5.px-6.overflow-auto > humio-resize-observer > ol",
                 "div.flex.flex-initial.justify-between.overflow-auto > humio-resize-observer > ol",
                 "humio-resize-observer > ol",
                 "ol button[data-e2e='pagination-page']"
             ]
-            
             pagination_container = None
             buttons = None
-            
             for selector in pagination_selectors:
                 try:
                     test_container = widget.locator(selector)
@@ -261,30 +252,51 @@ class DashboardType4Automation:
                         aria_current = await btn.get_attribute("aria-current")
                         if aria_current and aria_current.lower() == "true":
                             current_label = aria_label
-
+                    
                     if current_label:
                         await extract_current_page(current_label)
                     else:
                         await extract_current_page()
-
-                    # Click each other page by aria-label
-                    for label in all_labels:
-                        if current_label and label == current_label:
-                            continue
-
+                    
+                    # Determine pages to check: first 10 + last page
+                    total_pages = len(all_labels)
+                    pages_to_check = []
+                    
+                    if total_pages <= max_pages:
+                        # If total pages <= 10, check all
+                        pages_to_check = [label for label in all_labels if label != current_label]
+                    else:
+                        # Many pages detected
+                        has_many_pages = True
+                        # Check first 10 pages (excluding current if it's in first 10)
+                        first_10 = all_labels[:max_pages]
+                        pages_to_check = [label for label in first_10 if label != current_label]
+                        
+                        # Add last page if not already included
+                        last_page = all_labels[-1]
+                        if last_page not in pages_to_check:
+                            pages_to_check.append(last_page)
+                        
+                        print(f"[Type 4] {title}: Total {total_pages} pages detected. Checking first {max_pages} + last page")
+                    
+                    # Click each page to check
+                    pages_checked = 0
+                    for label in pages_to_check:
+                        if repeating_detected and pages_checked >= 2:
+                            print(f"[Type 4] {title}: Stopping pagination - same errors detected on consecutive pages")
+                            break
+                        
                         # Find the button with matching aria-label
-                        target = buttons.filter(
-                            has=widget.locator(f"button[data-e2e='pagination-page'][aria-label='{label}']")
-                        ).first
-                        if await target.count() == 0:
-                            target = buttons.nth(0)
-                            # Try by aria-label directly on buttons
-                            for i in range(await buttons.count()):
-                                btn = buttons.nth(i)
-                                btn_label = await btn.get_attribute("aria-label")
-                                if btn_label == label:
-                                    target = btn
-                                    break
+                        target = None
+                        for i in range(await buttons.count()):
+                            btn = buttons.nth(i)
+                            btn_label = await btn.get_attribute("aria-label")
+                            if btn_label == label:
+                                target = btn
+                                break
+                        
+                        if not target:
+                            continue
                         
                         disabled_attr = await target.get_attribute("disabled")
                         aria_disabled = await target.get_attribute("aria-disabled")
@@ -299,7 +311,6 @@ class DashboardType4Automation:
 
                         await target.click()
                         await self.page.wait_for_timeout(800)
-
                         changed = False
                         for _ in range(10):
                             await self.page.wait_for_timeout(500)
@@ -316,6 +327,7 @@ class DashboardType4Automation:
                             continue
 
                         await extract_current_page(label)
+                        pages_checked += 1
 
         except Exception as e:
             print(f"[Type 4] Error extracting table: {e}")
@@ -324,25 +336,28 @@ class DashboardType4Automation:
         for error_name, count in errors_dict.items():
             times = "time" if count == 1 else "times"
             formatted_errors.append(f"{error_name} - occurred {count} {times}")
-
+        
+        # Add warning if there are many pages or repeating errors were detected
+        if has_many_pages or repeating_detected:
+            formatted_errors.append("There are multiple pages - please check the URL for further information")
+        
         print(f"[Type 4] {title}: Extracted {len(formatted_errors)} unique errors")
         return {"name": title, "errors": formatted_errors}
 
     async def _extract_widget_errors(self, service_name, title):
-        """Generic method to extract errors from a widget."""
+        #Generic method to extract errors from a widget.
         try:
             config = self.widget_config.get(service_name)
             if not config:
                 print(f"[Type 4] No configuration for {service_name}")
                 return {"name": title, "errors": []}
-
             widget_id = config["id"]
             widget = self.page.locator(f"#widget_box__{widget_id}")
 
             # Wait for widget to be visible
             await widget.wait_for(state="visible", timeout=10000)
             await widget.scroll_into_view_if_needed(timeout=5000)
-            await self.page.wait_for_timeout(1000)
+            await self.page.wait_for_timeout(2000)
 
             # Extract widget title
             title_selector = f"#widget_box__{widget_id} > div.group.flex.flex-initial.items-center.justify-between.space-x-3.rounded-t.p-3.w-full.hover\\:overflow-visible > div.flex.items-center.space-x-1.min-w-0 > a > h2"
@@ -351,6 +366,27 @@ class DashboardType4Automation:
                 print(f"[Type 4] Found widget title: '{title}'")
             except Exception as e:
                 print(f"[Type 4] Could not extract title: {e}, using default: {title}")
+
+            # Wait for widget content to load - check for loading/searching state
+            max_wait = 30  # 30 seconds max
+            for i in range(max_wait):
+                try:
+                    # Check if still searching
+                    searching = widget.locator('div.text-deemphasized').filter(has_text="Searching")
+                    searching_count = await searching.count()
+                    if searching_count > 0:
+                        if i == 0 or i % 5 == 0:
+                            print(f"[Type 4] {title}: Widget still searching, waiting...")
+                        await self.page.wait_for_timeout(1000)
+                        continue
+                    else:
+                        # Not searching anymore
+                        break
+                except:
+                    break
+            
+            # Additional wait to ensure content is stable
+            await self.page.wait_for_timeout(2000)
 
             # Check for "No results found" message
             try:
@@ -370,34 +406,27 @@ class DashboardType4Automation:
             return {"name": title, "errors": []}
 
     async def _extract_charger_errors(self):
-        """Extract Charger-Errors widget data."""
+        #Extract Charger-Errors widget data.
         return await self._extract_widget_errors("charger", "Charger-Errors")
 
     async def _extract_keysmith_errors(self):
-        """Extract Keysmith-Errors widget data."""
+        #Extract Keysmith-Errors widget data.
         return await self._extract_widget_errors("keysmith", "Keysmith-Errors")
 
     async def _extract_neptune_errors(self):
-        """Extract Neptune-Errors widget data."""
+        #Extract Neptune-Errors widget data.
         return await self._extract_widget_errors("neptune", "Neptune-Errors")
 
     async def _extract_roundup_errors(self):
-        """Extract Roundup-Errors widget data."""
+        #Extract Roundup-Errors widget data.
         return await self._extract_widget_errors("roundup", "Roundup-Errors")
 
     async def _extract_zinc_errors(self):
-        """Extract Zinc-Errors widget data."""
+        #Extract Zinc-Errors widget data.
         return await self._extract_widget_errors("zinc", "Zinc-Errors")
 
     async def _extract_pii_count(self):
-        """Extract PII Count widget data.
-
-        This widget displays a single count, not a table of errors
-
-        Returns:
-            dict with 'name' and 'errors' keys
-            errors is a list with a single string: "PII Detection Count - N" or "PII Detection Count - No errors"
-        """
+        #Extract PII Count widget data.
         try:
             print("[Type 4] Extracting PII Count widget...")
 
@@ -405,7 +434,6 @@ class DashboardType4Automation:
             if not config:
                 print("[Type 4] No configuration for pii_count")
                 return {"name": "PII Detection Count", "errors": ["PII Detection Count - No errors"]}
-
             widget_id = config["id"]
             widget = self.page.locator(f"#widget_box__{widget_id}")
 
@@ -416,9 +444,29 @@ class DashboardType4Automation:
             except:
                 pass
 
-            await self.page.wait_for_timeout(1000)
+            await self.page.wait_for_timeout(2000)
             await widget.wait_for(state="visible", timeout=10000)
-            await self.page.wait_for_timeout(500)
+            
+            # Wait for widget content to load - check for loading/searching state
+            max_wait = 30  # 30 seconds max
+            for i in range(max_wait):
+                try:
+                    # Check if still searching
+                    searching = widget.locator('div.text-deemphasized').filter(has_text="Searching")
+                    searching_count = await searching.count()
+                    if searching_count > 0:
+                        if i == 0 or i % 5 == 0:
+                            print(f"[Type 4] PII Count: Widget still searching, waiting...")
+                        await self.page.wait_for_timeout(1000)
+                        continue
+                    else:
+                        # Not searching anymore
+                        break
+                except:
+                    break
+            
+            # Additional wait to ensure content is stable
+            await self.page.wait_for_timeout(2000)
 
             # Extract widget title
             title_selector = f"#widget_box__{widget_id} > div.group.flex.flex-initial.items-center.justify-between.space-x-3.rounded-t.p-3.w-full.hover\\:overflow-visible > div.flex.items-center.space-x-1.min-w-0 > a > h2"
@@ -438,7 +486,6 @@ class DashboardType4Automation:
                 # Get the inner text which contains the count
                 count_text = await content_element.inner_text(timeout=2000)
                 count_text = count_text.strip()
-
                 print(f"[Type 4] PII Count widget content: '{count_text}'")
 
                 # Try to parse as integer
@@ -458,7 +505,6 @@ class DashboardType4Automation:
                     message = f"{title} - No errors"
                 else:
                     message = f"{title} - {count}"
-
                 print(f"[Type 4] {title}: {message}")
                 return {"name": title, "errors": [message]}
 
@@ -472,47 +518,52 @@ class DashboardType4Automation:
             return {"name": "PII Detection Count", "errors": ["PII Detection Count - No errors"]}
 
     async def run_checks(self):
-        """Main method to run all checks on the dashboard."""
+        #Main method to run all checks on the dashboard.
         try:
             print(f"\n{'='*60}")
             print(f"[Type 4] Running Type 4 Dashboard Checks")
             print(f"[Type 4] Environment: {self.environment}")
             print(f"{'='*60}\n")
-            
+
             # Step 1: Wait for dashboard to load
             print("[Type 4] Step 1/7: Waiting for dashboard to load...")
             await self._wait_for_dashboard_load()
-            await self.page.wait_for_timeout(1000)
-            
+            await self.page.wait_for_timeout(3000)
+
             # Step 2: Extract Charger-Errors widget
             print("[Type 4] Step 2/7: Extracting Charger-Errors widget...")
             charger_result = await self._extract_charger_errors()
             self.service_errors["charger"] = charger_result["errors"]
             self.widgets.append(charger_result)
-            
+            await self.page.wait_for_timeout(1000)
+
             # Step 3: Extract Keysmith-Errors widget
             print("[Type 4] Step 3/7: Extracting Keysmith-Errors widget...")
             keysmith_result = await self._extract_keysmith_errors()
             self.service_errors["keysmith"] = keysmith_result["errors"]
             self.widgets.append(keysmith_result)
+            await self.page.wait_for_timeout(1000)
             
             # Step 4: Extract Neptune-Errors widget
             print("[Type 4] Step 4/7: Extracting Neptune-Errors widget...")
             neptune_result = await self._extract_neptune_errors()
             self.service_errors["neptune"] = neptune_result["errors"]
             self.widgets.append(neptune_result)
+            await self.page.wait_for_timeout(1000)
             
             # Step 5: Extract Roundup-Errors widget
             print("[Type 4] Step 5/7: Extracting Roundup-Errors widget...")
             roundup_result = await self._extract_roundup_errors()
             self.service_errors["roundup"] = roundup_result["errors"]
             self.widgets.append(roundup_result)
+            await self.page.wait_for_timeout(1000)
             
             # Step 6: Extract Zinc-Errors widget
             print("[Type 4] Step 6/7: Extracting Zinc-Errors widget...")
             zinc_result = await self._extract_zinc_errors()
             self.service_errors["zinc"] = zinc_result["errors"]
             self.widgets.append(zinc_result)
+            await self.page.wait_for_timeout(1000)
             
             # Step 7: Extract PLL Count widget
             print("[Type 4] Step 7/7: Extracting PII Count widget...")

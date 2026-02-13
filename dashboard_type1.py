@@ -1,8 +1,6 @@
-"""Dashboard Type 1 - Data Ingestion to Sustainability Insight Center"""
-
+#Dashboard Type 1 - Data Ingestion to Sustainability Insight Center
 
 class DashboardType1Automation:
-    """Automation logic for Dashboard Type 1 - Data Ingestion to Sustainability Insight Center."""
     
     def __init__(self, page):
         self.page = page
@@ -10,7 +8,6 @@ class DashboardType1Automation:
         self.result = None
     
     async def verify_dashboard(self):
-        """Verify we are on the correct Type 1 dashboard by checking URL."""
         try:
             await self.page.wait_for_load_state("domcontentloaded")
             await self.page.wait_for_timeout(1000)
@@ -27,7 +24,7 @@ class DashboardType1Automation:
             return False
     
     async def get_failed_upload_count(self):
-        """Extract the 'Files failed to upload' number from the dashboard."""
+        #Extract the 'Files failed to upload' number from the dashboard.
         try:
             widget = self.page.locator("#widget_box__f2a451e5-523a-43ec-9e89-0ff268d2963e")
             await widget.scroll_into_view_if_needed()
@@ -42,7 +39,7 @@ class DashboardType1Automation:
             return None
     
     async def generate_summary(self):
-        """Generate summary based on failed upload count."""
+        #Generate summary based on failed upload count.
         failed_count = await self.get_failed_upload_count()
         if failed_count is None:
             self.result = f"{self.dashboard_name}\nUnable to determine status"
@@ -53,7 +50,7 @@ class DashboardType1Automation:
             self.result = f"{self.dashboard_name}\n{failed_count} files failed to upload"
     
     async def run_checks(self):
-        """Run dashboard-specific checks and automation."""
+        #Run dashboard-specific checks and automation.
         print("Running Dashboard Type 1 checks...")
         await self.page.wait_for_timeout(2000)
         is_correct_dashboard = await self.verify_dashboard()

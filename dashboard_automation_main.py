@@ -41,15 +41,12 @@ DASHBOARD_AUTOMATION = {
     "dashboard_type_4": DashboardType4Automation,
 }
 
-
 async def run_all_dashboards_in_environment(environment):
     print(f"\n{'='*70}")
     print(f"Environment: {environment}")
     print(f"{'='*70}\n")
-
     dashboard_urls = DASHBOARD_URLS[environment]
     first_url = list(dashboard_urls.values())[0]
-
     print("Step 1: Logging in once for the environment...")
     login_automation = HumioLoginAutomation(dashboard_url=first_url)
     success = await login_automation.run()
@@ -59,7 +56,6 @@ async def run_all_dashboards_in_environment(environment):
     page = login_automation.page
     print(f"\nLogin successful. Session will be reused for all dashboards.\n")
     results = []
-
     for dashboard_type, dashboard_url in dashboard_urls.items():
         print(f"\nStep 2.{list(dashboard_urls.keys()).index(dashboard_type) + 1}: Processing {dashboard_type}...")
         print(f"   Dashboard URL: {dashboard_url}")
@@ -87,19 +83,15 @@ async def run_all_dashboards_in_environment(environment):
     for result in results:
         print(result)
     print(f"{'='*70}\n")
-
     print("Browser will remain open. Close manually when done.")
     await login_automation.cleanup()
-
     return True
-
 
 async def run_single_dashboard(environment, dashboard_type):
     print(f"\n{'='*70}")
     print(f"Environment: {environment}")
     print(f"Dashboard Type: {dashboard_type}")
     print(f"{'='*70}\n")
-
     dashboard_url = DASHBOARD_URLS[environment][dashboard_type]
     print("Step 1: Logging in...")
     login_automation = HumioLoginAutomation(dashboard_url=dashboard_url)
@@ -122,7 +114,6 @@ async def run_single_dashboard(environment, dashboard_type):
     await login_automation.cleanup()
     return True
 
-
 async def run_all_environments_comprehensive_report():
     env_display_names = {
         "env1": "PRE-PROD",
@@ -135,7 +126,6 @@ async def run_all_environments_comprehensive_report():
     print("COMPREHENSIVE HUMIO AUTOMATION REPORT")
     print(f"{'='*70}\n")
     print("Initializing browser session...")
-
     login_automation = HumioLoginAutomation(dashboard_url=DASHBOARD_URLS["env1"]["dashboard_type_1"])
     success = await login_automation.run()
     if not success:
@@ -145,7 +135,6 @@ async def run_all_environments_comprehensive_report():
     else:
         print("Browser session initialized\n")
         page = login_automation.page
-
     try:
         if success:
             for env_key in ["env1", "env2", "env3", "env4"]:
@@ -155,7 +144,6 @@ async def run_all_environments_comprehensive_report():
                 print(f"{'='*70}")
                 dashboard_urls = DASHBOARD_URLS[env_key]
                 env_results = {}
-
                 try:
                     dashboard_list = list(dashboard_urls.items())
                     for idx, (dashboard_type, dashboard_url) in enumerate(dashboard_list):
@@ -165,7 +153,6 @@ async def run_all_environments_comprehensive_report():
                             "dashboard_type_3": "Activation Keys",
                             "dashboard_type_4": "Service-Errors",
                         }.get(dashboard_type, dashboard_type)
-
                         try:
                             if not (env_key == "env1" and idx == 0):
                                 print(f"\n[{env_display}] Navigating to {dashboard_name}...")
@@ -185,16 +172,13 @@ async def run_all_environments_comprehensive_report():
                             await dashboard_automation.run_checks()
                             env_results[dashboard_type] = dashboard_automation
                             print(f"[{env_display}] Checks completed for {dashboard_name}")
-
                         except Exception as e:
                             print(f"[{env_display}] Error processing {dashboard_name}: {e}")
                             env_results[dashboard_type] = f"Error: {str(e)}"
                             continue
-
                     all_results[env_display] = env_results
-
                 except Exception as e:
-                    print(f"[{env_display}] ✗ Critical error: {e}")
+                    print(f"[{env_display}] Critical error: {e}")
                     import traceback
                     traceback.print_exc()
                     all_results[env_display] = {"status": "FAILED", "error": str(e)}
@@ -209,9 +193,9 @@ async def run_all_environments_comprehensive_report():
                 await login_automation.cleanup()
                 print("✓ Browser closed")
             except Exception as cleanup_error:
-                print(f"⚠ Cleanup error: {cleanup_error}")
+                print(f"Cleanup error: {cleanup_error}")
         else:
-            print("⚠ Skipping cleanup (login not established)")
+            print("Skipping cleanup (login not established)")
 
     def _ordinal(n: int) -> str:
         if 10 <= n % 100 <= 20:
@@ -221,107 +205,71 @@ async def run_all_environments_comprehensive_report():
         return f"{n}{suffix}"
 
     def _extract_main_error(error_text):
-        """Extract only the main error message from a full error text."""
+        #Extract only the main error message from a full error text.
         import re
         
         # Remove leading dashes/brackets and spaces (e.g., "- - ", "- ", or "] ")
         error_text = re.sub(r'^[\]\-\s]+', '', error_text)
         
         # Remove leading IDs and timestamps (hex strings, UUIDs, timestamps)
-        # Pattern: Remove leading hex/UUID, file paths with line numbers
         error_text = re.sub(r'^(?:[a-f0-9]{16,}\s+){1,3}', '', error_text)
         error_text = re.sub(r'^[a-f0-9-]{30,}\s+', '', error_text)
         
-        # Remove file paths and line numbers (e.g., "aiokafka.consumer.fetcher:665 ")
+        # Remove file paths and line numbers
         error_text = re.sub(r'^[\w.]+:\d+\s+', '', error_text)
 
-        # Remove leading module prefixes without line numbers (e.g., "agent.template.server: ")
+        # Remove leading module prefixes without line numbers
         module_prefix = re.match(r'^([A-Za-z0-9_.]+):\s+', error_text)
         if module_prefix and '.' in module_prefix.group(1):
             error_text = error_text[module_prefix.end():]
-
-        # Drop module-only lines like "agent.template.server"
         if re.match(r'^[A-Za-z0-9_.]+$', error_text) and '.' in error_text:
             return ""
-
-        # Special case: template server errors
         if error_text.lower().startswith('template server:'):
             return error_text.split(':', 1)[1].strip()
-
-        # Preserve full message for specific recurring error
         if 'Unhandled exception checking is_ready for module' in error_text:
             return error_text.strip()
-        
-        # Extract specific error patterns:
-        
-        # 1. "Failed fetch messages from X: KafkaConnectionError" pattern
         match = re.search(r'(Failed fetch messages from \d+: \w+(?:Error)?)', error_text)
         if match:
             return match.group(1)
-
-        # 1b. "Exception while unregistering device" pattern
         if 'Exception while unregistering device' in error_text:
             return 'Exception while unregistering device'
-        
-        # 2. "Malformed gateway command received" pattern
         if 'Malformed gateway command received' in error_text:
             return 'Malformed gateway command received'
         
-        # 3. Extract first sentence or phrase before detailed JSON/dict data
-        # Stop at: opening brace {, opening bracket [, or very long continuous text
+        # Extract first sentence or phrase before detailed JSON/dict data
         match = re.match(r'^([^{\[]+?)(?:\s*[{\[]|\s{3,})', error_text)
         if match:
             main_part = match.group(1).strip()
-            # Further clean up - remove trailing colons and connection details
             main_part = re.sub(r':\s*Connection at.*$', '', main_part)
             main_part = re.sub(r':\s*[a-z0-9.-]+:\d+.*$', '', main_part, flags=re.IGNORECASE)
             main_part = re.sub(r'\s+P[0-9A-Z-+]+.*$', '', main_part)
             return main_part.strip()
         
-        # 4. If no special pattern, try to get first meaningful sentence (before colon with lots of detail)
         parts = error_text.split(':')
         if len(parts) >= 2:
-            # Check if the pattern looks like an error message with error type
-            # e.g., "Request failed: ErrorType: Description" or "Error: Description"
             if len(parts) >= 3:
                 second_part = parts[1].strip()
-                # If second part looks like an error class (ends with Error, Exception, or is PascalCase)
                 if (second_part.endswith(('Error', 'Exception')) or 
                     (second_part and second_part[0].isupper() and 'Error' in second_part)):
-                    # Include first three parts for full context
                     return f"{parts[0].strip()}: {parts[1].strip()}: {parts[2].strip()}"
-            
-            # For two-part errors, check if second part is meaningful description
             if len(parts) == 2:
                 first_part = parts[0].strip()
                 second_part = parts[1].strip()
-                
-                # If first part is short and descriptive (like "Connection timeout", "Request failed")
-                # and second part is a description, include both
                 if len(first_part) < 50 and len(second_part) < 100 and len(second_part) > 5:
-                    # Avoid including server addresses, ports, or overly technical details
                     if not re.search(r'[a-z0-9.-]+:\d+', second_part, re.IGNORECASE):
                         return f"{first_part}: {second_part}"
                 
-            # If first part is very short (likely just a label), include second part too
             if len(parts[0].strip()) < 20 and len(parts) > 2:
                 return f"{parts[0].strip()}: {parts[1].strip()}"
-            
-            # For longer first parts, just return it
             return parts[0].strip()
         
-        # 5. Fallback: truncate at first 150 chars if it's very long
         if len(error_text) > 150:
             return error_text[:150].strip() + '...'
-        
         return error_text.strip()
 
     def _summarize_errors(errors):
-        """Summarize errors by extracting main message and counting occurrences."""
-        # First, extract main error messages from all errors
+        # Summarize errors by extracting main message and counting occurrences.
         extracted_errors = [e for e in (_extract_main_error(error) for error in errors) if e]
-        
-        # Count occurrences of each main error
         counter = Counter(extracted_errors)
         summarized = []
         for text, count in counter.items():
@@ -340,7 +288,6 @@ async def run_all_environments_comprehensive_report():
         "dashboard_type_3": "Activation Keys Onboarding",
         "dashboard_type_4": "Service-Errors Filter Known Issues",
     }
-
     for env_display in ["PRE-PROD", "ANE1", "EUC1", "USW2"]:
         if env_display in all_results:
             report_lines.append(f"\n**{env_display}**")
@@ -348,14 +295,12 @@ async def run_all_environments_comprehensive_report():
             if isinstance(env_data, dict) and env_data.get("status") in ["LOGIN_FAILED", "FAILED"]:
                 report_lines.append(f"✗ {env_data.get('error', 'Failed')}")
                 continue
-
             dashboard_order = ["dashboard_type_2", "dashboard_type_1", "dashboard_type_3", "dashboard_type_4"]
             for db_type in dashboard_order:
                 if db_type in env_data:
                     db_display = dashboard_display_names[db_type]
                     report_lines.append(f"• **{db_display}**")
                     dashboard_obj = env_data[db_type]
-
                     if db_type == "dashboard_type_3":
                         if hasattr(dashboard_obj, "errors_dict") and dashboard_obj.errors_dict:
                             errors_dict = dashboard_obj.errors_dict
@@ -397,7 +342,6 @@ async def run_all_environments_comprehensive_report():
                             if "location" in errors_dict:
                                 report_lines.append(f"  o Location/Tags/Sdc Patch Failure - {errors_dict['location']}")
                                 error_count += 1
-
                             if error_count == 0:
                                 report_lines.append("  o No errors")
                         else:
@@ -408,7 +352,6 @@ async def run_all_environments_comprehensive_report():
                             for widget_data in dashboard_obj.widgets:
                                 widget_name = widget_data.get("name", "Unknown Widget")
                                 widget_errors = widget_data.get("errors", [])
-                                
                                 if widget_errors and isinstance(widget_errors, list):
                                     report_lines.append(f"  o {widget_name}")
                                     for error in _summarize_errors(widget_errors):
@@ -443,17 +386,14 @@ async def run_all_environments_comprehensive_report():
     print(f"{'='*70}\n")
     for line in report_lines:
         print(line)
-
     print(f"\n{'='*70}")
     print("REPORT GENERATION COMPLETE")
     print(f"{'='*70}\n")
-
 
 async def main():
     await run_all_environments_comprehensive_report()
     # await run_all_dashboards_in_environment(environment="env1")
     # await run_single_dashboard(environment="env4", dashboard_type="dashboard_type_4")
-
 
 if __name__ == "__main__":
     asyncio.run(main())

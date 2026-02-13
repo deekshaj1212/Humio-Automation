@@ -1,8 +1,6 @@
-"""Dashboard Type 3 - Activation Key Onboarding automation."""
-
+#Dashboard Type 3 - Activation Key Onboarding automation.
 
 class DashboardType3Automation:
-    """Automation logic for Dashboard Type 3 - Activation Key Onboarding."""
     
     def __init__(self, page):
         """Initialize with Playwright page object."""
@@ -11,29 +9,15 @@ class DashboardType3Automation:
         self.result = None
 
     async def _extract_table_with_pagination(self, widget, column_selectors, scroll_horizontal=False, deduplicate=True):
-        """Extract table data with pagination support.
-        
-        Args:
-            widget: Playwright locator for the widget
-            column_selectors: List of CSS selectors for columns to extract (e.g., ['td:nth-child(5) > div', 'td:nth-child(6) > div'])
-            scroll_horizontal: Whether to scroll horizontally before extraction
-            
-        Returns:
-            List of combined column texts from all pages
-        """
         all_errors = []
         pagination_found = False
         
         try:
             # Try multiple pagination selector patterns
             pagination_selectors = [
-                # Specific format for pagination ol
                 "div.flex.flex-initial.justify-between.py-0\\.5.px-6.overflow-auto > humio-resize-observer > ol",
-                # Alternative: direct ol search
                 "div.flex.flex-initial.justify-between > humio-resize-observer > ol",
-                # Alternative: pagination nav
                 "nav ol",
-                # Simple button-based pagination in footer
                 "div.widget-box__footer button",
             ]
             
@@ -52,7 +36,7 @@ class DashboardType3Automation:
                     button_count = await test_buttons.count()
                     
                     if button_count > 0:
-                        print(f"   ✓ Pagination bar found with {button_count} page buttons!")
+                        print(f"   Pagination bar found with {button_count} page buttons")
                         pagination_bar = test_bar
                         pagination_buttons = test_buttons
                         pagination_found = True
@@ -63,18 +47,15 @@ class DashboardType3Automation:
             if pagination_found and pagination_buttons:
                 button_count = await pagination_buttons.count()
                 print(f"   Processing {button_count} pages...")
-                
                 for page_idx in range(button_count):
                     try:
                         print(f"   Clicking page {page_idx + 1}/{button_count}...")
                         btn = pagination_buttons.nth(page_idx)
-                        
                         # Scroll button into view before clicking
                         try:
                             await btn.scroll_into_view_if_needed(timeout=2000)
                         except:
                             pass
-                        
                         # Click with retry
                         for attempt in range(3):
                             try:
@@ -86,9 +67,8 @@ class DashboardType3Automation:
                                     continue
                                 else:
                                     raise
-                        
                         await self.page.wait_for_timeout(2500)  # Wait for content to load
-                        
+                    
                         # Scroll horizontally if needed
                         if scroll_horizontal:
                             try:
@@ -112,7 +92,6 @@ class DashboardType3Automation:
                         page_errors = 0
                         for i in range(row_count):
                             try:
-                                # Extract data from each specified column
                                 column_texts = []
                                 for selector in column_selectors:
                                     try:
@@ -123,7 +102,6 @@ class DashboardType3Automation:
                                     except:
                                         continue
                                 
-                                # Combine column texts
                                 if column_texts:
                                     combined = " - ".join(column_texts)
                                     if deduplicate:
@@ -135,24 +113,19 @@ class DashboardType3Automation:
                                         page_errors += 1
                             except Exception as row_error:
                                 continue
-
                         label = "unique" if deduplicate else "total"
                         print(f"   Page {page_idx + 1}: Extracted {page_errors} {label} errors")
-                    
                     except Exception as e:
-                        print(f"   ⚠ Error on page {page_idx + 1}: {e}")
+                        print(f"   Error on page {page_idx + 1}: {e}")
                         continue
-                
                 label = "unique" if deduplicate else "total"
-                print(f"   ✓ Total extracted: {len(all_errors)} {label} errors from {button_count} pages")
+                print(f"   Total extracted: {len(all_errors)} {label} errors from {button_count} pages")
                 return all_errors if all_errors else None
-            
             else:
                 # No pagination found, extract from single page
                 print(f"   No pagination found, extracting from single page...")
-        
         except Exception as e:
-            print(f"   ⚠ Pagination detection error: {e}")
+            print(f"   Pagination detection error: {e}")
             print(f"   Falling back to single page extraction...")
         
         # Single page extraction (fallback)
@@ -174,7 +147,6 @@ class DashboardType3Automation:
             rows = widget.locator('div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table > tbody > tr')
             row_count = await rows.count()
             print(f"   Single page: Found {row_count} rows")
-            
             for i in range(row_count):
                 try:
                     column_texts = []
@@ -196,17 +168,14 @@ class DashboardType3Automation:
                             all_errors.append(combined)
                 except:
                     continue
-
             label = "unique" if deduplicate else "total"
             print(f"   Single page: Extracted {len(all_errors)} {label} errors")
-        
         except Exception as e:
-            print(f"   ✗ Error during single page extraction: {e}")
-        
+            print(f"   Error during single page extraction: {e}")
         return all_errors if all_errors else None
     
     async def verify_dashboard(self):
-        """Verify we are on the correct Type 3 dashboard by checking URL."""
+        #Verify we are on the correct Type 3 dashboard by checking URL.
         try:
             await self.page.wait_for_load_state("domcontentloaded")
             await self.page.wait_for_timeout(1000)
@@ -220,11 +189,11 @@ class DashboardType3Automation:
                 return False
                 
         except Exception as e:
-            print(f"   ✗ Could not verify dashboard: {e}")
+            print(f"   Could not verify dashboard: {e}")
             return False
     
     async def get_jwt_generation_failed(self):
-        """Extract the 'JWT generation failed' count from the dashboard."""
+        #Extract the 'JWT generation failed' count from the dashboard.
         try:
             widget = self.page.locator("#widget_box__65662d8f-6256-4b4f-975d-30c0a9e7267d")
             await widget.scroll_into_view_if_needed()
@@ -240,7 +209,7 @@ class DashboardType3Automation:
             return 0
     
     async def get_subscription_key_claim_failure(self):
-        """Extract the 'Subscription Key Claim Failure While JWT Generation' count from the dashboard."""
+        #Extract the 'Subscription Key Claim Failure While JWT Generation' count from the dashboard.
         try:
             widget = self.page.locator("#widget_box__fa904b24-0480-4364-bd19-edf2a7e6a872")
             await widget.scroll_into_view_if_needed()
@@ -256,7 +225,7 @@ class DashboardType3Automation:
             return 0
     
     async def get_device_not_available_glp_pool(self):
-        """Extract the 'Device not available GLP Pool' count from the dashboard."""
+        #Extract the 'Device not available GLP Pool' count from the dashboard.
         try:
             widget = self.page.locator("#widget_box__a7a91c34-a179-43d1-8017-11ab0b5e62d2")
             await widget.scroll_into_view_if_needed()
@@ -272,9 +241,8 @@ class DashboardType3Automation:
             return 0
     
     async def get_location_tags_sdc_patch_failure(self):
-        """Extract the 'Location/Tags/Sdc Patch Failure Count' from the dashboard."""
+        #Extract the 'Location/Tags/Sdc Patch Failure Count' from the dashboard.
         try:
-            # Try multiple widget IDs (different between environments)
             widget_ids = [
                 "#widget_box__24c7e9ab-3f07-43b1-985d-96fd8a382fb0",  # env1
                 "#widget_box__9ca37872-2576-4389-b9ec-e611738b8b2a",  # env3
@@ -294,14 +262,12 @@ class DashboardType3Automation:
             if not widget:
                 print(f"Location/Tags/Sdc Patch Failure widget not found")
                 return 0
-            
             try:
                 await widget.scroll_into_view_if_needed(timeout=10000)
             except:
                 await self.page.evaluate("window.scrollBy(0, 2000)")
                 await self.page.wait_for_timeout(1000)
             await self.page.wait_for_timeout(500)
-            
             try:
                 content_div = widget.locator('div.text-deemphasized.w-full.h-full.flex.items-center.justify-center.border-t.border-normal.shadow-base.shadow-inner-md')
                 content_text = await content_div.inner_text(timeout=2000)
@@ -310,7 +276,6 @@ class DashboardType3Automation:
                     return 0
             except:
                 pass
-            
             try:
                 value_element = widget.locator('[data-e2e="single-value-widget-value"]')
                 count_text = await value_element.inner_text(timeout=3000)
@@ -333,7 +298,7 @@ class DashboardType3Automation:
             return 0
     
     async def get_sdc_patch_failure_errors(self):
-        """Extract error details if Location/Tags/Sdc Patch Failure Count > 0."""
+        #Extract error details if Location/Tags/Sdc Patch Failure Count > 0.
         try:
             widget = self.page.locator("#widget_box__72e5beef-64dc-4be4-becd-9970e2a6c87f")
             await widget.scroll_into_view_if_needed()
@@ -352,7 +317,7 @@ class DashboardType3Automation:
             return None
     
     async def get_oae_errors(self):
-        """Extract Error Details During iLO Onboard Activation Job."""
+        #Extract Error Details During iLO Onboard Activation Job.
         try:
             # Try multiple widget IDs (different between environments)
             widget_ids = [
@@ -397,7 +362,6 @@ class DashboardType3Automation:
                 table = widget.locator('div.widget-box__content.z-40 > div > div.flex.flex-1.flex-col.h-full.table-widget > div > table')
                 await table.wait_for(timeout=2000)
                 
-                # Use pagination helper to extract from all pages
                 error_codes = await self._extract_table_with_pagination(
                     widget,
                     ['td:nth-child(5) > div', 'td:nth-child(6) > div'],
@@ -434,7 +398,7 @@ class DashboardType3Automation:
             return None
     
     async def get_error_codes_simple(self):
-        """Extract Subscription key claim failure details."""
+        #Extract Subscription key claim failure details.
         try:
             widget = self.page.locator("#widget_box__0104eef2-6852-4bbc-ab64-43934aaf268f")
             await widget.scroll_into_view_if_needed(timeout=5000)
@@ -458,7 +422,7 @@ class DashboardType3Automation:
             return None
     
     async def get_table_error_codes(self):
-        """Extract Subscription key assignment failure details."""
+        #Extract Subscription key assignment failure details.
         try:
             widget = self.page.locator("#widget_box__79b189d5-cfa5-48be-846f-e9073556b286")
             await widget.scroll_into_view_if_needed()
@@ -499,11 +463,11 @@ class DashboardType3Automation:
                 return None
                 
         except Exception as e:
-            print(f"   ⚠ Could not extract Subscription key assignment failure details: {e}")
+            print(f"   Could not extract Subscription key assignment failure details: {e}")
             return None
     
     async def get_pin_generation_failure_details(self):
-        """Extract PIN Generation Failure error codes from table."""
+        #Extract PIN Generation Failure error codes from table.
         try:
             # Try multiple widget IDs (different between environments)
             widget_ids = [
@@ -593,7 +557,7 @@ class DashboardType3Automation:
             return None
     
     async def get_compute_provision_failure_details(self):
-        """Extract Compute Provision Failure error codes."""
+        #Extract Compute Provision Failure error codes.
         try:
             widget = self.page.locator("#widget_box__99bc4e96-1f7b-4d1f-a326-c46ee1ab0623")         
             try:
@@ -658,7 +622,7 @@ class DashboardType3Automation:
             return None
     
     async def generate_summary(self):
-        """Generate summary based on all errors."""
+        #Generate summary based on all errors.
         try:
             print(f"Scrolling down to reveal all widgets...")
             await self.page.evaluate("""
@@ -735,7 +699,7 @@ class DashboardType3Automation:
             self.result = f"   ✓ {self.dashboard_name} - No errors"
     
     async def run_checks(self):
-        """Run dashboard-specific checks and automation."""
+        #Run dashboard-specific checks and automation.
         print("Running Dashboard Type 3 checks...")
         await self.page.wait_for_timeout(2000)
         is_correct_dashboard = await self.verify_dashboard()
