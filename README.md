@@ -12,7 +12,7 @@ Automated error tracking and monitoring across multiple Humio CloudOps environme
 
 2. **Run the automation:**
    ```powershell
-   python dashboard_automation.py
+   python dashboard_automation_main.py
    ```
 
 3. **Wait for the initial login to complete** where you select the browser certificate and authenticate with Windows Hello fingerprint/biometric.
