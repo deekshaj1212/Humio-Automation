@@ -10,7 +10,6 @@ class DashboardType1Automation:
     async def verify_dashboard(self):
         try:
             await self.page.wait_for_load_state("domcontentloaded")
-            await self.page.wait_for_timeout(1000)
             current_url = self.page.url
             print(f"Current URL: {current_url}")
             if "Ingestion%20to%20Sustainability%20Insight%" in current_url:
@@ -28,7 +27,7 @@ class DashboardType1Automation:
         try:
             widget = self.page.locator("#widget_box__f2a451e5-523a-43ec-9e89-0ff268d2963e")
             await widget.scroll_into_view_if_needed()
-            await self.page.wait_for_timeout(500)
+            await widget.wait_for(state="visible", timeout=3000)
             value_element = widget.locator('[data-e2e="single-value-widget-value"]')
             count_text = await value_element.inner_text(timeout=5000)
             count = int(count_text.strip())
@@ -52,7 +51,10 @@ class DashboardType1Automation:
     async def run_checks(self):
         #Run dashboard-specific checks and automation.
         print("Running Dashboard Type 1 checks...")
-        await self.page.wait_for_timeout(2000)
+        try:
+            await self.page.wait_for_load_state("networkidle", timeout=10000)
+        except:
+            await self.page.wait_for_timeout(1000)
         is_correct_dashboard = await self.verify_dashboard()
         if not is_correct_dashboard:
             self.result = f"{self.dashboard_name} Dashboard verification failed"

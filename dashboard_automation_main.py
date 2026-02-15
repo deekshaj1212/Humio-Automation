@@ -191,7 +191,7 @@ async def run_all_environments_comprehensive_report():
             try:
                 login_automation.keep_open = False
                 await login_automation.cleanup()
-                print("✓ Browser closed")
+                print("Browser closed")
             except Exception as cleanup_error:
                 print(f"Cleanup error: {cleanup_error}")
         else:
@@ -281,7 +281,7 @@ async def run_all_environments_comprehensive_report():
 
     report_lines = []
     now = datetime.now()
-    report_lines.append(f"**{_ordinal(now.day)} {now.strftime('%B')}**")
+    report_lines.append(f"{_ordinal(now.day)} {now.strftime('%B')}")
     dashboard_display_names = {
         "dashboard_type_2": "COM Subscription And Consumption",
         "dashboard_type_1": "Data Ingestion to Sustainability Insight Center",
@@ -290,7 +290,7 @@ async def run_all_environments_comprehensive_report():
     }
     for env_display in ["PRE-PROD", "ANE1", "EUC1", "USW2"]:
         if env_display in all_results:
-            report_lines.append(f"\n**{env_display}**")
+            report_lines.append(f"\n{env_display}")
             env_data = all_results[env_display]
             if isinstance(env_data, dict) and env_data.get("status") in ["LOGIN_FAILED", "FAILED"]:
                 report_lines.append(f"✗ {env_data.get('error', 'Failed')}")
@@ -299,7 +299,7 @@ async def run_all_environments_comprehensive_report():
             for db_type in dashboard_order:
                 if db_type in env_data:
                     db_display = dashboard_display_names[db_type]
-                    report_lines.append(f"• **{db_display}**")
+                    report_lines.append(f"• {db_display}")
                     dashboard_obj = env_data[db_type]
                     if db_type == "dashboard_type_3":
                         if hasattr(dashboard_obj, "errors_dict") and dashboard_obj.errors_dict:
@@ -389,6 +389,25 @@ async def run_all_environments_comprehensive_report():
     print(f"\n{'='*70}")
     print("REPORT GENERATION COMPLETE")
     print(f"{'='*70}\n")
+    
+    # Save report to text file with today's date in summary reports folder
+    import os
+    folder_name = "summary reports"
+    if not os.path.exists(folder_name):
+        os.makedirs(folder_name)
+        print(f"Created folder: {folder_name}")
+    
+    today_date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    filename = f"{today_date}_humio_service_monitoring.txt"
+    filepath = os.path.join(folder_name, filename)
+    
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            for line in report_lines:
+                f.write(line + "\n")
+        print(f"Report saved to: {filepath}")
+    except Exception as e:
+        print(f"Error saving report to file: {e}")
 
 async def main():
     await run_all_environments_comprehensive_report()

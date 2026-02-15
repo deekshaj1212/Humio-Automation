@@ -12,7 +12,6 @@ class DashboardType2Automation:
         #Verify we are on the correct Type 2 dashboard by checking URL.
         try:
             await self.page.wait_for_load_state("domcontentloaded")
-            await self.page.wait_for_timeout(1000)
             current_url = self.page.url            
             if "COM%20Subscription%20and%20Consumption" in current_url:
                 print(f"Type 2 Dashboard Detected")
@@ -56,7 +55,7 @@ class DashboardType2Automation:
         try:
             widget = self.page.locator("#widget_box__8a200ba1-6845-44f9-9289-bc7805361900")
             await widget.scroll_into_view_if_needed()
-            await self.page.wait_for_timeout(500)
+            await widget.wait_for(state="visible", timeout=3000)
             value_element = widget.locator('[data-e2e="single-value-widget-value"]')
             count_text = await value_element.inner_text(timeout=5000)
             count = int(count_text.strip())
@@ -71,7 +70,7 @@ class DashboardType2Automation:
         try:
             widget = self.page.locator("#widget_box__8481de95-4fc5-4ba2-9b63-dba0ed55cde7")
             await widget.scroll_into_view_if_needed()
-            await self.page.wait_for_timeout(500)
+            await widget.wait_for(state="visible", timeout=3000)
             value_element = widget.locator('[data-e2e="single-value-widget-value"]')
             count_text = await value_element.inner_text(timeout=5000)
             count = int(count_text.strip())
@@ -87,18 +86,19 @@ class DashboardType2Automation:
             error_link = self.page.get_by_role("link", name="Charger Errors")
             widget = error_link.locator('..').locator('..').locator('..')
             await widget.scroll_into_view_if_needed()
-            # Wait longer for widget to fully load and search to complete
-            await self.page.wait_for_timeout(3000)
+            await widget.wait_for(state="visible", timeout=3000)
             
-            # Check if widget is still loading/searching
-            try:
-                searching_div = widget.locator('div.text-deemphasized').filter(has_text="Searching")
-                await searching_div.wait_for(timeout=500)
-                # Still searching, wait more
-                print(f"Widget still searching, waiting...")
-                await self.page.wait_for_timeout(3000)
-            except:
-                pass
+            # Check if widget is still loading/searching (max 6 iterations = 6 seconds)
+            max_iterations = 6
+            for i in range(max_iterations):
+                try:
+                    searching_div = widget.locator('div.text-deemphasized').filter(has_text="Searching")
+                    await searching_div.wait_for(timeout=500)
+                    if i == 0:
+                        print(f"Widget still searching, waiting...")
+                    await self.page.wait_for_timeout(1000)
+                except:
+                    break
             
             # Check for no results
             no_results_div = widget.locator('div.text-deemphasized').filter(has_text="Search completed. No results found")
@@ -128,7 +128,7 @@ class DashboardType2Automation:
             link = self.page.get_by_role("link", name="Skipped servers")
             widget = link.locator('..').locator('..').locator('..')
             await widget.scroll_into_view_if_needed()
-            await self.page.wait_for_timeout(500)
+            await widget.wait_for(state="visible", timeout=3000)
             value_element = widget.locator('[data-e2e="single-value-widget-value"]')
             count_text = await value_element.inner_text(timeout=5000)
             count = int(count_text.strip())
@@ -143,7 +143,10 @@ class DashboardType2Automation:
         try:
             print(f"Scrolling down to reveal all widgets")
             await self.page.evaluate("() => { window.scrollBy(0, 1000); }")
-            await self.page.wait_for_timeout(1500)
+            try:
+                await self.page.wait_for_load_state("networkidle", timeout=3000)
+            except:
+                await self.page.wait_for_timeout(500)
         except Exception as e:
             print(f"Could not scroll: {e}")
     
@@ -182,7 +185,10 @@ class DashboardType2Automation:
     async def run_checks(self):
         #Run dashboard-specific checks and automation.
         print("Running Dashboard Type 2 checks...")
-        await self.page.wait_for_timeout(2000)
+        try:
+            await self.page.wait_for_load_state("networkidle", timeout=10000)
+        except:
+            await self.page.wait_for_timeout(1000)
         is_correct_dashboard = await self.verify_dashboard()
         if not is_correct_dashboard:
             self.result = f"{self.dashboard_name} - Dashboard verification failed"

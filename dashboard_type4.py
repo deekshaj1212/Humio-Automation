@@ -160,14 +160,89 @@ class DashboardType4Automation:
             await self.page.wait_for_timeout(3000)
             return True
 
+    async def _wait_for_widget_load(self, widget, title):
+        print(f"[Type 4] {title}: Waiting for widget to load completely...")
+        try:
+            # Strategy 1: Check for widget-level loading bar
+            loading_bar = widget.locator("div.progress-bar__progress")
+            try:
+                loading_visible = await loading_bar.is_visible(timeout=2000)
+                if loading_visible:
+                    print(f"[Type 4] {title}: Loading bar detected, waiting for completion...")
+                    max_wait = 60
+                    for i in range(max_wait):
+                        try:
+                            style_attr = await loading_bar.get_attribute("style", timeout=1000)
+                            if style_attr and "width: 100%" in style_attr:
+                                print(f"[Type 4] {title}: Loading bar reached 100%")
+                                await self.page.wait_for_timeout(1000)
+                                return True
+                            if i % 10 == 0 and i > 0:
+                                if style_attr and "width:" in style_attr:
+                                    width_match = style_attr.split("width:")[1].split(";")[0].strip()
+                                    print(f"[Type 4] {title}: Loading... ({width_match})")
+                            await self.page.wait_for_timeout(500)
+                        except:
+                            await self.page.wait_for_timeout(500)
+                            continue
+            except:
+                pass
+            
+            # Strategy 2: Wait for "Searching" text to disappear
+            print(f"[Type 4] {title}: Checking for 'Searching' status...")
+            max_iterations = 60  # 60 seconds max
+            consecutive_stable = 0
+            prev_content = None
+            for iteration in range(max_iterations):
+                try:
+                    # Check if still showing "Searching"
+                    searching_divs = widget.locator('div.text-deemphasized').filter(has_text="Searching")
+                    searching_count = await searching_divs.count()
+                    if searching_count > 0:
+                        if iteration == 0 or iteration % 10 == 0:
+                            print(f"[Type 4] {title}: Widget still searching, waiting... (attempt {iteration+1}/{max_iterations})")
+                        consecutive_stable = 0
+                        prev_content = None
+                    else:
+                        # Not searching anymore, check content stability
+                        try:
+                            # Get current widget content to check if it's stable
+                            current_content = await widget.locator("div.widget-box__content").inner_text(timeout=2000)
+                            
+                            # If content matches previous check, it's stable
+                            if prev_content and current_content == prev_content:
+                                consecutive_stable += 1
+                                if consecutive_stable >= 2:  # 2 consecutive stable checks
+                                    print(f"[Type 4] {title}: Widget content is stable, loading complete")
+                                    await self.page.wait_for_timeout(1000)
+                                    return True
+                            else:
+                                consecutive_stable = 0
+                                prev_content = current_content
+                        except:
+                            consecutive_stable = 0
+                            prev_content = None
+                    await self.page.wait_for_timeout(1000)
+                except Exception as e:
+                    if iteration == 0:
+                        print(f"[Type 4] {title}: Error checking widget status: {e}")
+                    await self.page.wait_for_timeout(1000)
+                    continue
+            print(f"[Type 4] {title}: Widget loading timeout reached, proceeding with extraction...")
+            await self.page.wait_for_timeout(2000)
+            return True
+        except Exception as e:
+            print(f"[Type 4] {title}: Error waiting for widget load: {e}, proceeding anyway...")
+            await self.page.wait_for_timeout(2000)
+            return True
+
     async def _extract_table_errors_with_pagination(self, widget, table_selector, title):
         """Extract error rows from a table widget, including all pagination pages if present."""
         errors_dict = {}
-        max_pages = 10  # Check first 10 pages
+        max_pages = 20  # Check first 20 pages
         prev_page_errors = set()
         repeating_detected = False
         has_many_pages = False  # Track if there are many pages
-        
         async def extract_current_page(page_label=None):
             nonlocal prev_page_errors, repeating_detected
             table = widget.locator(table_selector)
@@ -180,7 +255,6 @@ class DashboardType4Automation:
                 print(f"[Type 4] {title}: Found {row_count} rows (page {page_label})")
             else:
                 print(f"[Type 4] {title}: Found {row_count} rows")
-            
             current_page_errors = set()
             for i in range(row_count):
                 try:
@@ -207,7 +281,6 @@ class DashboardType4Automation:
             if prev_page_errors and current_page_errors == prev_page_errors:
                 repeating_detected = True
                 print(f"[Type 4] {title}: Same errors detected on consecutive pages")
-            
             prev_page_errors = current_page_errors
 
         try:
@@ -224,12 +297,13 @@ class DashboardType4Automation:
                     test_container = widget.locator(selector)
                     count = await test_container.count()
                     if count > 0:
-                        pagination_container = test_container
                         # If we matched a button selector directly, get parent ol
                         if "button" in selector:
                             buttons = test_container
+                            pagination_container = test_container.locator("xpath=ancestor::ol[1]")
                         else:
                             buttons = test_container.locator("button[data-e2e='pagination-page']")
+                            pagination_container = test_container
                         break
                 except:
                     continue
@@ -258,26 +332,55 @@ class DashboardType4Automation:
                     else:
                         await extract_current_page()
                     
+                    # Get outer HTML to extract all page numbers (including hidden ones with ellipsis)
+                    import re
+                    outer_html = ""
+                    try:
+                        if pagination_container:
+                            outer_html = await pagination_container.inner_html()
+                    except:
+                        pass
+                    
+                    # Extract all page numbers from aria-label attributes
+                    all_page_numbers = []
+                    if outer_html:
+                        matches = re.findall(r'aria-label="page (\d+)"', outer_html)
+                        all_page_numbers = [int(m) for m in matches]
+                    
+                    # If we couldn't get from HTML, use the labels we collected
+                    if not all_page_numbers and all_labels:
+                        for label in all_labels:
+                            match = re.search(r'\d+', label)
+                            if match:
+                                all_page_numbers.append(int(match.group()))
+                    
+                    all_page_numbers = sorted(set(all_page_numbers))  # Remove duplicates and sort
+                    
                     # Determine pages to check: first 10 + last page
-                    total_pages = len(all_labels)
                     pages_to_check = []
                     
-                    if total_pages <= max_pages:
-                        # If total pages <= 10, check all
-                        pages_to_check = [label for label in all_labels if label != current_label]
+                    last_page_num = max(all_page_numbers) if all_page_numbers else 0
+                    if last_page_num > 10:
+                        has_many_pages = True
+                        print(f"[Type 4] {title}: there are multiple pages please check the URL for more information")
+
+                    if len(all_page_numbers) <= max_pages:
+                        # If total pages <= max_pages, check all (excluding current)
+                        pages_to_check = [label for label in all_labels if label not in (current_label or [])]
                     else:
                         # Many pages detected
                         has_many_pages = True
+                        
                         # Check first 10 pages (excluding current if it's in first 10)
-                        first_10 = all_labels[:max_pages]
-                        pages_to_check = [label for label in first_10 if label != current_label]
+                        first_10_labels = [f"page {p}" for p in all_page_numbers[:min(10, len(all_page_numbers))]]
+                        pages_to_check = [label for label in all_labels if label in first_10_labels and label != current_label]
                         
                         # Add last page if not already included
-                        last_page = all_labels[-1]
-                        if last_page not in pages_to_check:
-                            pages_to_check.append(last_page)
+                        last_page_label = f"page {all_page_numbers[-1]}" if all_page_numbers else None
+                        if last_page_label and last_page_label not in pages_to_check and last_page_label in all_labels:
+                            pages_to_check.append(last_page_label)
                         
-                        print(f"[Type 4] {title}: Total {total_pages} pages detected. Checking first {max_pages} + last page")
+                        print(f"[Type 4] {title}: Total {len(all_page_numbers)} pages detected. Checking first {min(10, len(all_page_numbers))} + last page")
                     
                     # Click each page to check
                     pages_checked = 0
@@ -339,7 +442,7 @@ class DashboardType4Automation:
         
         # Add warning if there are many pages or repeating errors were detected
         if has_many_pages or repeating_detected:
-            formatted_errors.append("There are multiple pages - please check the URL for further information")
+            formatted_errors.append("there are multiple pages please check the URL for more information")
         
         print(f"[Type 4] {title}: Extracted {len(formatted_errors)} unique errors")
         return {"name": title, "errors": formatted_errors}
@@ -367,26 +470,8 @@ class DashboardType4Automation:
             except Exception as e:
                 print(f"[Type 4] Could not extract title: {e}, using default: {title}")
 
-            # Wait for widget content to load - check for loading/searching state
-            max_wait = 30  # 30 seconds max
-            for i in range(max_wait):
-                try:
-                    # Check if still searching
-                    searching = widget.locator('div.text-deemphasized').filter(has_text="Searching")
-                    searching_count = await searching.count()
-                    if searching_count > 0:
-                        if i == 0 or i % 5 == 0:
-                            print(f"[Type 4] {title}: Widget still searching, waiting...")
-                        await self.page.wait_for_timeout(1000)
-                        continue
-                    else:
-                        # Not searching anymore
-                        break
-                except:
-                    break
-            
-            # Additional wait to ensure content is stable
-            await self.page.wait_for_timeout(2000)
+            # Use robust widget loading wait
+            await self._wait_for_widget_load(widget, title)
 
             # Check for "No results found" message
             try:
@@ -447,27 +532,6 @@ class DashboardType4Automation:
             await self.page.wait_for_timeout(2000)
             await widget.wait_for(state="visible", timeout=10000)
             
-            # Wait for widget content to load - check for loading/searching state
-            max_wait = 30  # 30 seconds max
-            for i in range(max_wait):
-                try:
-                    # Check if still searching
-                    searching = widget.locator('div.text-deemphasized').filter(has_text="Searching")
-                    searching_count = await searching.count()
-                    if searching_count > 0:
-                        if i == 0 or i % 5 == 0:
-                            print(f"[Type 4] PII Count: Widget still searching, waiting...")
-                        await self.page.wait_for_timeout(1000)
-                        continue
-                    else:
-                        # Not searching anymore
-                        break
-                except:
-                    break
-            
-            # Additional wait to ensure content is stable
-            await self.page.wait_for_timeout(2000)
-
             # Extract widget title
             title_selector = f"#widget_box__{widget_id} > div.group.flex.flex-initial.items-center.justify-between.space-x-3.rounded-t.p-3.w-full.hover\\:overflow-visible > div.flex.items-center.space-x-1.min-w-0 > a > h2"
             title = "PII Detection Count"
@@ -476,6 +540,9 @@ class DashboardType4Automation:
                 print(f"[Type 4] Found widget title: '{title}'")
             except Exception as e:
                 print(f"[Type 4] Could not extract title: {e}, using default")
+            
+            # Use robust widget loading wait
+            await self._wait_for_widget_load(widget, title)
 
             # Extract count from content area
             try:
