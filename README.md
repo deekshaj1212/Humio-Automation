@@ -1,6 +1,7 @@
 # Humio CloudOps Dashboard Automation
 
 Automated error tracking and monitoring across multiple Humio CloudOps environments. Generates comprehensive summary from COM Subscription, Data Ingestion, Activation Keys, and Service Errors dashboards across 4 production environments.
+JIRA Link: https://jira-pro.it.hpe.com:8443/browse/CCSE-120571
 
 ## Steps to get this working:
 
@@ -12,7 +13,7 @@ Automated error tracking and monitoring across multiple Humio CloudOps environme
 
 2. **Run the automation:**
    ```powershell
-   python dashboard_automation.py
+   python dashboard_automation_main.py
    ```
 
 3. **Wait for the initial login to complete** where you select the browser certificate and authenticate with Windows Hello fingerprint/biometric.
