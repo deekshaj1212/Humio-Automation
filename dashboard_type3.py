@@ -630,7 +630,11 @@ class DashboardType3Automation:
                     window.scrollBy(0, 1000);
                 }
             """)
-            await self.page.wait_for_timeout(1500)
+            # Wait for widgets to load after scrolling
+            try:
+                await self.page.wait_for_load_state("networkidle", timeout=3000)
+            except:
+                await self.page.wait_for_timeout(500)
         except Exception as e:
             print(f"Could not scroll: {e}")
         self.errors_dict = {}
@@ -701,7 +705,10 @@ class DashboardType3Automation:
     async def run_checks(self):
         #Run dashboard-specific checks and automation.
         print("Running Dashboard Type 3 checks...")
-        await self.page.wait_for_timeout(2000)
+        try:
+            await self.page.wait_for_load_state("networkidle", timeout=10000)
+        except:
+            await self.page.wait_for_timeout(1000)
         is_correct_dashboard = await self.verify_dashboard()
         if not is_correct_dashboard:
             self.result = f"   ✗ {self.dashboard_name} - Dashboard verification failed"
